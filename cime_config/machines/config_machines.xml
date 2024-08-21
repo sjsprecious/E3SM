@@ -4107,6 +4107,7 @@
       <env name="FI_CXI_RX_MATCH_MODE">hybrid</env>
       <!-- https://support.hpe.com/hpesc/public/docDisplay?docId=a00129146en_us&docLocale=en_US -->
       <env name="FI_MR_CACHE_MONITOR">memhooks</env>
+      <env name="NETCDF_PATH">$ENV{NETCDF}</env>
     </environment_variables>
     <environment_variables comp_interface="nuopc">
       <!-- required on all systems for timing file output --> 
