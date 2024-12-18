@@ -34,6 +34,7 @@ module ocn_time_integration
    use ocn_time_integration_split
    use ocn_time_integration_si
    use ocn_time_integration_lts
+   use ocn_time_integration_fblts
    use ocn_time_integration_split_ab2
 
 
@@ -46,6 +47,19 @@ module ocn_time_integration
    ! Public parameters
    !
    !--------------------------------------------------------------------
+
+    ! Enum for selecting different time integrators
+    integer, public :: timeIntegratorChoice
+
+    integer, public, parameter :: &
+       timeIntUnknown          = 0, &! unknown or undefined
+       timeIntSplitExplicit    = 1, &! split-explicit
+       timeIntUnsplitExplicit  = 2, &! unsplit-explicit
+       timeIntSemiImplicit     = 3, &! Semi-implicit
+       timeIntRK4              = 4, &! 4th-order Runge-Kutta
+       timeIntLTS              = 5, &! local time-stepping
+       timeIntFBLTS            = 6, &! forward-backward lts
+       timeIntSplitExplicitAB2 = 7   ! split-explicit AB2 baroclinic
 
    !--------------------------------------------------------------------
    !
@@ -62,17 +76,6 @@ module ocn_time_integration
    !
    !--------------------------------------------------------------------
 
-    ! Enum for selecting different time integrators
-    integer :: timeIntegratorChoice
-
-    integer, parameter :: &
-       timeIntUnknown          = 0, &! unknown or undefined
-       timeIntSplitExplicit    = 1, &! split-explicit
-       timeIntUnsplitExplicit  = 2, &! unsplit-explicit
-       timeIntSemiImplicit     = 3, &! Semi-implicit
-       timeIntRK4              = 4, &! 4th-order Runge-Kutta
-       timeIntLTS              = 5, &! local time-stepping
-       timeIntSplitExplicitAB2 = 6   ! split-explicit AB2 baroclinic
 
 !***********************************************************************
 
@@ -136,6 +139,8 @@ module ocn_time_integration
          call ocn_time_integrator_rk4(domain, dt)
       case (timeIntLTS)
          call ocn_time_integrator_lts(domain, dt)
+      case (timeIntFBLTS)
+         call ocn_time_integrator_fblts(domain, dt)
       case (timeIntSplitExplicitAB2)
          call ocn_time_integrator_split_ab2(domain, dt)
       end select
@@ -232,6 +237,10 @@ module ocn_time_integration
       case ('LTS')
          timeIntegratorChoice = timeIntLTS
          call ocn_time_integration_lts_init(domain)
+      
+      case ('FB_LTS')
+         timeIntegratorChoice = timeIntFBLTS
+         call ocn_time_integration_fblts_init(domain)
 
       case ('split_explicit_ab2')
          timeIntegratorChoice = timeIntSplitExplicitAB2

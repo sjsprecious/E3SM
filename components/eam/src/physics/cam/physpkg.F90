@@ -156,6 +156,7 @@ subroutine phys_register
     use radiation,          only: radiation_register
     use co2_cycle,          only: co2_register
     use co2_diagnostics,    only: co2_diags_register
+    use gw_drag,            only: gw_register
     use flux_avg,           only: flux_avg_register
     use iondrag,            only: iondrag_register
     use ionosphere,         only: ionos_register
@@ -315,6 +316,8 @@ subroutine phys_register
        ! co2 constituents
        call co2_register()
        call co2_diags_register()
+
+       call gw_register()
 
        ! register data model ozone with pbuf
        if (cam3_ozone_data_on) then
@@ -525,10 +528,6 @@ subroutine phys_inidat( cam_out, pbuf2d )
        call pbuf_set_field(pbuf2d, m, tptr, start=(/1,n/), kount=(/pcols,1/))
     end do
     deallocate(tptr)
-
-    do lchnk=begchunk,endchunk
-       cam_out(lchnk)%tbot(:) = posinf
-    end do
 
     !
     ! 3-D fields
@@ -788,6 +787,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use output_aerocom_aie, only: output_aerocom_aie_init, do_aerocom_ind3
     use misc_diagnostics,   only: dcape_diags_init
     use conditional_diag_output_utils, only: cnd_diag_output_init
+    use phys_grid_ctem,     only: phys_grid_ctem_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -909,7 +909,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     ! CAM3 prescribed ozone
     if (cam3_ozone_data_on) call cam3_ozone_data_init(phys_state)
 
-    call gw_init()
+    call gw_init(pbuf2d)
 
     call rayleigh_friction_init()
 
@@ -1012,6 +1012,9 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     ! Initialize Nudging Parameters
     !--------------------------------
     if(Nudge_Model) call nudging_init
+
+    ! Initialize Transformed Eularian Mean (TEM) diagnostics
+    call phys_grid_ctem_init()
 
     
    !BSINGH -  addfld and adddefault calls for perturb growth testing    
@@ -1321,7 +1324,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, pbuf2d,  cam_out, &
 
 
     use cam_diagnostics,only: diag_deallocate, diag_surf
-    use comsrf,         only: trefmxav, trefmnav, sgh, sgh30, fsds 
+    use comsrf,         only: trefmxav, trefmnav, sgh, sgh30, fsds
     use physconst,      only: stebol, latvap
 #if ( defined OFFLINE_DYN )
     use metdata,        only: get_met_srf2
@@ -1495,6 +1498,7 @@ subroutine phys_final( phys_state, phys_tend, pbuf2d, phys_diag )
     use chemistry, only : chem_final
     use wv_saturation, only : wv_sat_final
     use radiation, only: radiation_final
+    use phys_grid_ctem, only : phys_grid_ctem_final
     !----------------------------------------------------------------------- 
     ! 
     ! Purpose: 
@@ -1530,6 +1534,10 @@ subroutine phys_final( phys_state, phys_tend, pbuf2d, phys_diag )
     call t_startf ('print_cost_p')
     call print_cost_p
     call t_stopf ('print_cost_p')
+
+    call t_startf ('phys_grid_ctem_final')
+    call phys_grid_ctem_final()
+    call t_stopf ('phys_grid_ctem_final')
 
 end subroutine phys_final
 
@@ -1829,7 +1837,7 @@ end if ! l_tracer_aero
 
        ! If CLUBB is called, do not call vertical diffusion, but still
        ! calculate surface friction velocity (ustar) and Obukhov length
-       call clubb_surface ( state, cam_in, surfric, obklen)
+       call clubb_surface ( state, cam_in, pbuf, surfric, obklen)
 
        ! Diagnose tracer mixing ratio tendencies from surface fluxes, 
        ! then update the mixing ratios. (If cflx_cpl_opt==2, these are done in 
@@ -3147,6 +3155,7 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
   use nudging,             only: Nudge_Model,nudging_timestep_init
 
   use seasalt_model,       only: advance_ocean_data, has_mam_mom
+  use phys_grid_ctem,      only: phys_grid_ctem_diags
 
   implicit none
 
@@ -3224,6 +3233,9 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
   ! Update Nudging values, if needed
   !----------------------------------
   if(Nudge_Model) call nudging_timestep_init(phys_state)
+
+  ! Update Transformed Eularian Mean (TEM) diagnostics
+  call phys_grid_ctem_diags(phys_state)
 
 end subroutine phys_timestep_init
 

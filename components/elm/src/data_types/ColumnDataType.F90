@@ -18,7 +18,7 @@ module ColumnDataType
   use elm_varpar      , only : nlevdecomp_full, crop_prog, nlevdecomp
   use elm_varpar      , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
   use elm_varcon      , only : spval, ispval, zlnd, snw_rds_min, denice, denh2o, tfrz, pondmx
-  use elm_varcon      , only : watmin, bdsno, zsoi, zisoi, dzsoi_decomp
+  use elm_varcon      , only : watmin, bdsno, bdfirn, zsoi, zisoi, dzsoi_decomp
   use elm_varcon      , only : c13ratio, c14ratio, secspday
   use elm_varctl      , only : use_fates, use_fates_planthydro, create_glacier_mec_landunit
   use elm_varctl      , only : use_hydrstress, use_crop
@@ -28,6 +28,7 @@ module ColumnDataType
   use elm_varctl      , only : hist_wrtch4diag, use_century_decomp
   use elm_varctl      , only : get_carbontag, override_bgc_restart_mismatch_dump
   use elm_varctl      , only : pf_hmode, nu_com
+  use elm_varctl      , only : use_extrasnowlayers
   use elm_varctl      , only : use_fan
   use ch4varcon       , only : allowlakeprod
   use pftvarcon       , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr, pinit_beta1, pinit_beta2
@@ -501,6 +502,9 @@ module ColumnDataType
     real(r8), pointer :: qflx_glcice          (:)   => null() ! net flux of new glacial ice (growth - melt) (mm H2O/s), passed to GLC
     real(r8), pointer :: qflx_glcice_frz      (:)   => null() ! ice growth (positive definite) (mm H2O/s)
     real(r8), pointer :: qflx_glcice_melt     (:)   => null() ! ice melt (positive definite) (mm H2O/s)
+    real(r8), pointer :: qflx_glcice_diag     (:)   => null() ! net flux of new glacial ice (growth - melt) (mm H2O/s), passed to GLC
+    real(r8), pointer :: qflx_glcice_frz_diag (:)   => null() ! ice growth (positive definite) (mm H2O/s)
+    real(r8), pointer :: qflx_glcice_melt_diag(:)   => null() ! ice melt (positive definite) (mm H2O/s)
     real(r8), pointer :: qflx_drain_vr        (:,:) => null() ! liquid water lost as drainage (m /time step)
     real(r8), pointer :: qflx_h2osfc2topsoi   (:)   => null() ! liquid water coming from surface standing water top soil (mm H2O/s)
     real(r8), pointer :: qflx_snow2topsoi     (:)   => null() ! liquid water coming from residual snow to topsoil (mm H2O/s)
@@ -1742,8 +1746,20 @@ contains
           end do
           do j = -nlevsno+1, 0
              if (j > col_pp%snl(c)) then
-                this%h2osoi_ice(c,j) = col_pp%dz(c,j)*250._r8
-                this%h2osoi_liq(c,j) = 0._r8
+                    if (use_extrasnowlayers) then
+                       ! amschnei@uci.edu: Initialize "deep firn" on glacier columns
+                       if (lun_pp%itype(l) == istice .or. lun_pp%itype(l) == istice_mec) then
+                         this%h2osoi_ice(c,j) = col_pp%dz(c,j)*bdfirn
+                         this%h2osoi_liq(c,j) = 0._r8
+                       else
+                         this%h2osoi_ice(c,j) = col_pp%dz(c,j)*bdsno
+                         this%h2osoi_liq(c,j) = 0._r8
+                       end if
+                    else ! no firn model (default in v2)
+                       ! Below, "250._r8" should instead be "bdsno", which is 250 kg m^3 by default
+                       this%h2osoi_ice(c,j) = col_pp%dz(c,j)*250._r8
+                       this%h2osoi_liq(c,j) = 0._r8
+                    end if
              end if
           end do
        end if
@@ -5712,6 +5728,9 @@ contains
     allocate(this%qflx_glcice            (begc:endc))             ; this%qflx_glcice          (:)   = spval
     allocate(this%qflx_glcice_frz        (begc:endc))             ; this%qflx_glcice_frz      (:)   = spval
     allocate(this%qflx_glcice_melt       (begc:endc))             ; this%qflx_glcice_melt     (:)   = spval
+    allocate(this%qflx_glcice_diag       (begc:endc))             ; this%qflx_glcice_diag     (:)   = spval
+    allocate(this%qflx_glcice_frz_diag   (begc:endc))             ; this%qflx_glcice_frz_diag (:)   = spval
+    allocate(this%qflx_glcice_melt_diag  (begc:endc))             ; this%qflx_glcice_melt_diag(:)   = spval
     allocate(this%qflx_drain_vr          (begc:endc,1:nlevgrnd))  ; this%qflx_drain_vr        (:,:) = spval
     allocate(this%qflx_h2osfc2topsoi     (begc:endc))             ; this%qflx_h2osfc2topsoi   (:)   = spval
     allocate(this%qflx_snow2topsoi       (begc:endc))             ; this%qflx_snow2topsoi     (:)   = spval
@@ -5829,27 +5848,39 @@ contains
      call hist_addfld1d (fname='QSNOFRZ', units='kg/m2/s', &
           avgflag='A', long_name='column-integrated snow freezing rate', &
            ptr_col=this%qflx_snofrz, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
-
+   
     if (create_glacier_mec_landunit) then
-       this%qflx_glcice(begc:endc) = spval
-        call hist_addfld1d (fname='QICE',  units='mm/s',  &
-             avgflag='A', long_name='ice growth/melt', &
-              ptr_col=this%qflx_glcice, l2g_scale_type='ice')
-    end if
+            this%qflx_glcice(begc:endc) = spval
+             call hist_addfld1d (fname='QICE',  units='mm/s',  &
+                  avgflag='A', long_name='ice growth/melt (with active GLC/MECs)', &
+                   ptr_col=this%qflx_glcice, l2g_scale_type='ice')
 
-    if (create_glacier_mec_landunit) then
-       this%qflx_glcice_frz(begc:endc) = spval
-        call hist_addfld1d (fname='QICE_FRZ',  units='mm/s',  &
-             avgflag='A', long_name='ice growth', &
-              ptr_col=this%qflx_glcice_frz, l2g_scale_type='ice')
-    end if
+            this%qflx_glcice_frz(begc:endc) = spval
+             call hist_addfld1d (fname='QICE_FRZ',  units='mm/s',  &
+                  avgflag='A', long_name='ice growth (with active GLC/MECs)', &
+                   ptr_col=this%qflx_glcice_frz, l2g_scale_type='ice')
 
-    if (create_glacier_mec_landunit) then
-       this%qflx_glcice_melt(begc:endc) = spval
-        call hist_addfld1d (fname='QICE_MELT',  units='mm/s',  &
-             avgflag='A', long_name='ice melt', &
-              ptr_col=this%qflx_glcice_melt, l2g_scale_type='ice')
-    end if
+            this%qflx_glcice_melt(begc:endc) = spval
+             call hist_addfld1d (fname='QICE_MELT',  units='mm/s',  &
+                  avgflag='A', long_name='ice melt (with active GLC/MECs)', &
+                   ptr_col=this%qflx_glcice_melt, l2g_scale_type='ice')
+    else 
+             this%qflx_glcice_diag(begc:endc) = spval
+             call hist_addfld1d (fname='QICE',  units='mm/s',  &
+                  avgflag='A', long_name='diagnostic ice growth/melt (no active GLC/MECs)', &
+                   ptr_col=this%qflx_glcice_diag, l2g_scale_type='ice')
+
+            this%qflx_glcice_frz_diag(begc:endc) = spval
+             call hist_addfld1d (fname='QICE_FRZ',  units='mm/s',  &
+                  avgflag='A', long_name='diagnostic ice growth (no active GLC/MECs)', &
+                   ptr_col=this%qflx_glcice_frz_diag, l2g_scale_type='ice')
+
+            this%qflx_glcice_melt_diag(begc:endc) = spval
+             call hist_addfld1d (fname='QICE_MELT',  units='mm/s',  &
+                  avgflag='A', long_name='diagnostic ice melt (no active GLC/MECs)', &
+                   ptr_col=this%qflx_glcice_melt_diag, l2g_scale_type='ice')
+   end if
+
 
     ! As defined here, snow_sources - snow_sinks will equal the change in h2osno at any
     ! given time step but only if there is at least one snow layer (for all landunits
@@ -7529,14 +7560,16 @@ contains
                 c = filter_soilc(fc)
                 this%decomp_cpools_leached(c,l) = 0._r8
              end do
-             do j = 1, nlev
-                do fc = 1,num_soilc
+             if(l /= i_cwd)then
+               do j = 1, nlev
+                 do fc = 1,num_soilc
                    c = filter_soilc(fc)
                    this%decomp_cpools_leached(c,l) = &
                      this%decomp_cpools_leached(c,l) + &
                      this%decomp_cpools_transport_tendency(c,j,l) * dzsoi_decomp(j)
-                end do
-             end do
+                 end do
+               end do
+             endif
              do fc = 1,num_soilc
                 c = filter_soilc(fc)
                 this%som_c_leached(c) = &
@@ -7727,9 +7760,11 @@ contains
           do fi = 1,num_column
              i = filter_column(fi)
              this%decomp_cpools_sourcesink(i,j,k) = value_column
+             this%decomp_cpools_transport_tendency(i,j,k) = value_column
           end do
        end do
     end do
+  
     ! pflotran
     if(nstep_mod == 0 .or. is_first_restart_step()) then 
       do k = 1, ndecomp_pools
@@ -7767,8 +7802,8 @@ contains
        this%er(i)                        = value_column
        this%som_c_leached(i)             = value_column
        this%somc_yield(i)                = value_column
-       this%somhr(i)                     = value_column ! REVISIT
-       this%lithr(i)                     = value_column ! REVISIT
+       this%somhr(i)                     = value_column 
+       this%lithr(i)                     = value_column 
        this%hr(i)                        = value_column
        this%cinputs(i)                   = value_column
        this%coutputs(i)                  = value_column
@@ -7776,6 +7811,8 @@ contains
        this%litterc_loss(i)              = value_column
        
        this%nee(i)                       = value_column
+       this%er(i)                        = value_column  
+       this%som_c_leached(i)             = value_column  
 
        ! Zero p2c column fluxes
        this%rr(i)                    = value_column
@@ -7795,36 +7832,26 @@ contains
          this%somc_fire(i)                 = value_column
          this%product_closs(i)             = value_column
          this%sr(i)                        = value_column
-         this%er(i)                        = value_column
          this%litfire(i)                   = value_column
          this%somfire(i)                   = value_column
          this%totfire(i)                   = value_column
          this%nep(i)                       = value_column
          this%nbp(i)                       = value_column
-         this%fire_closs(i)                = value_column
          this%cwdc_loss(i)                 = value_column
-         this%som_c_leached(i)             = value_column
          this%somc_erode(i)                = value_column
          this%somc_deposit(i)              = value_column
          this%somc_yield(i)                = value_column
       enddo 
     end if 
-      do k = 1, ndecomp_pools
-         do fi = 1,num_column
-            i = filter_column(fi)
-            this%decomp_cpools_leached(i,k) = value_column
-            this%decomp_cpools_erode(i,k) = value_column
-            this%decomp_cpools_deposit(i,k) = value_column
-          end do 
+    
+    do k = 1, ndecomp_pools
+      do fi = 1,num_column
+        i = filter_column(fi)
+        this%decomp_cpools_leached(i,k) = value_column
+        this%decomp_cpools_erode(i,k) = value_column
+        this%decomp_cpools_deposit(i,k) = value_column
       end do 
-      do k = 1, ndecomp_pools
-         do j = 1, nlevdecomp_full
-            do fi = 1,num_column
-               i = filter_column(fi)
-               this%decomp_cpools_transport_tendency(i,j,k) = value_column
-            end do
-         end do
-      end do
+    end do 
 
   end subroutine col_cf_setvalues
 
@@ -9781,8 +9808,9 @@ contains
           c = filter_soilc(fc)
           this%decomp_npools_leached(c,l) = 0._r8
        end do
-       do j = 1, nlev
-          do fc = 1,num_soilc
+       if(l /= i_cwd)then
+         do j = 1, nlev
+           do fc = 1,num_soilc
              c = filter_soilc(fc)
              this%decomp_npools_leached(c,l) = &
                   this%decomp_npools_leached(c,l) + &
@@ -9790,8 +9818,9 @@ contains
 
              this%bgc_npool_inputs(c,l) = this%bgc_npool_inputs(c,l) + &
                 (this%bgc_npool_ext_inputs_vr(c,j,l)-this%bgc_npool_ext_loss_vr(c,j,l))*dzsoi_decomp(j)
-          end do
-       end do
+           end do
+         end do
+       endif
        do fc = 1,num_soilc
           c = filter_soilc(fc)
           this%som_n_leached(c) = &
@@ -11311,16 +11340,16 @@ contains
           c = filter_soilc(fc)
           this%decomp_ppools_leached(c,l) = 0._r8
        end do
-
-       do j = 1, nlevdecomp
-          do fc = 1,num_soilc
+       if(l /= i_cwd)then
+         do j = 1, nlevdecomp
+           do fc = 1,num_soilc
              c = filter_soilc(fc)
              this%decomp_ppools_leached(c,l) = &
                   this%decomp_ppools_leached(c,l) + &
                   this%decomp_ppools_transport_tendency(c,j,l) * dzsoi_decomp(j)
-          end do
-       end do
-
+           end do
+         end do
+       endif
        do fc = 1,num_soilc
           c = filter_soilc(fc)
           this%som_p_leached(c) = &

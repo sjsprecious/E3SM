@@ -27,6 +27,7 @@ class SHOCMacrophysics : public scream::AtmosphereProcess
   using PF           = scream::PhysicsFunctions<DefaultDevice>;
   using C            = physics::Constants<Real>;
   using KT           = ekat::KokkosTypes<DefaultDevice>;
+  using SC           = scream::shoc::Constants<Real>;
 
   using Spack                = typename SHF::Spack;
   using IntSmallPack         = typename SHF::IntSmallPack;
@@ -75,25 +76,25 @@ public:
       const int i = team.league_rank();
 
       const Real zvir = C::ZVIR;
-      const Real latvap = C::LatVap;
       const Real cpair = C::Cpair;
       const Real ggr = C::gravit;
       const Real inv_ggr = 1/ggr;
+      const Real mintke = SC::mintke;
 
       const int nlev_packs = ekat::npack<Spack>(nlev);
 
       Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const Int& k) {
 
-        const auto range = ekat::range<IntSmallPack>(k*Spack::n);
-        const Smask in_nlev_range = (range < nlev);
+        
+        cldfrac_liq_prev(i,k)=cldfrac_liq(i,k);
 
-        // Inverse of Exner. Assert that exner != 0 when in range before computing.
+        // Inverse of Exner. In non-rel builds, assert that exner != 0 when in range before computing.
         const Spack exner = PF::exner_function(p_mid(i,k));
         const Smask nonzero = (exner != 0);
-        EKAT_KERNEL_ASSERT((nonzero || !in_nlev_range).all());
+        EKAT_KERNEL_ASSERT((nonzero || !(ekat::range<IntSmallPack>(k*Spack::n) < nlev)).all());
         inv_exner(i,k).set(nonzero, 1/exner);
 
-        tke(i,k) = ekat::max(sp(0.004), tke(i,k));
+        tke(i,k) = ekat::max(mintke, tke(i,k));
 
         // Tracers are updated as a group. The tracers tke and qc act as separate inputs to shoc_main()
         // and are therefore updated differently to the bundled tracers. Here, we make a copy if each
@@ -107,8 +108,9 @@ public:
         qw(i,k) = qv(i,k) + qc(i,k);
 
         // Temperature
+        // NOTE: theta_v (thv) is intentionally different from one in HOMME
         const auto theta_zt = PF::calculate_theta_from_T(T_mid(i,k),p_mid(i,k));
-        thlm(i,k) = theta_zt-(theta_zt/T_mid(i,k))*(latvap/cpair)*qc(i,k);
+        thlm(i,k) = PF::calculate_thetal_from_theta(theta_zt,T_mid(i,k),qc(i,k));
         thv(i,k)  = theta_zt*(1 + zvir*qv(i,k) - qc(i,k));
 
         // Vertical layer thickness
@@ -136,8 +138,9 @@ public:
 
         // Dry static energy
         shoc_s(i,k) = PF::calculate_dse(T_mid(i,k),z_mid(i,k),phis(i));
+
+        if (k+1 == nlev_packs) zi_grid(i,nlevi_v)[nlevi_p] = 0;
       });
-      zi_grid(i,nlevi_v)[nlevi_p] = 0;
       team.team_barrier();
 
       const auto zt_grid_s = ekat::subview(zt_grid, i);
@@ -198,6 +201,8 @@ public:
     view_2d        thlm;
     view_2d        qw;
     view_2d        cloud_frac;
+    view_2d        cldfrac_liq;
+    view_2d        cldfrac_liq_prev;
 
     // Assigning local variables
     void set_variables(const int ncol_, const int nlev_, const int num_qtracers_,
@@ -213,7 +218,8 @@ public:
                        const view_2d& dse_, const view_2d& rrho_, const view_2d& rrho_i_,
                        const view_2d& thv_, const view_2d& dz_,const view_2d& zt_grid_,const view_2d& zi_grid_, const view_1d& wpthlp_sfc_,
                        const view_1d& wprtp_sfc_,const view_1d& upwp_sfc_,const view_1d& vpwp_sfc_, const view_2d& wtracer_sfc_,
-                       const view_2d& wm_zt_,const view_2d& inv_exner_,const view_2d& thlm_,const view_2d& qw_)
+                       const view_2d& wm_zt_,const view_2d& inv_exner_,const view_2d& thlm_,const view_2d& qw_,
+                       const view_2d& cldfrac_liq_, const view_2d& cldfrac_liq_prev_)
     {
       ncol = ncol_;
       nlev = nlev_;
@@ -254,6 +260,8 @@ public:
       inv_exner = inv_exner_;
       thlm = thlm_;
       qw = qw_;
+      cldfrac_liq=cldfrac_liq_;
+      cldfrac_liq_prev=cldfrac_liq_prev_;
     } // set_variables
   }; // SHOCPreprocess
   /* --------------------------------------------------------------------------------------------*/
@@ -375,17 +383,17 @@ public:
 
   // Structure for storing local variables initialized using the ATMBufferManager
   struct Buffer {
-#ifndef SCREAM_SMALL_KERNELS
+#ifndef SCREAM_SHOC_SMALL_KERNELS
     static constexpr int num_1d_scalar_ncol = 4;
 #else
-    static constexpr int num_1d_scalar_ncol = 17;
+    static constexpr int num_1d_scalar_ncol = 15;
 #endif
     static constexpr int num_1d_scalar_nlev = 1;
-#ifndef SCREAM_SMALL_KERNELS
+#ifndef SCREAM_SHOC_SMALL_KERNELS
     static constexpr int num_2d_vector_mid  = 18;
     static constexpr int num_2d_vector_int  = 12;
 #else
-    static constexpr int num_2d_vector_mid  = 23;
+    static constexpr int num_2d_vector_mid  = 22;
     static constexpr int num_2d_vector_int  = 13;
 #endif
     static constexpr int num_2d_vector_tr   = 1;
@@ -394,7 +402,7 @@ public:
     uview_1d<Real> wprtp_sfc;
     uview_1d<Real> upwp_sfc;
     uview_1d<Real> vpwp_sfc;
-#ifdef SCREAM_SMALL_KERNELS
+#ifdef SCREAM_SHOC_SMALL_KERNELS
     uview_1d<Real> se_b;
     uview_1d<Real> ke_b;
     uview_1d<Real> wv_b;
@@ -403,9 +411,7 @@ public:
     uview_1d<Real> ke_a;
     uview_1d<Real> wv_a;
     uview_1d<Real> wl_a;
-    uview_1d<Real> ustar;
     uview_1d<Real> kbfs;
-    uview_1d<Real> obklen;
     uview_1d<Real> ustar2;
     uview_1d<Real> wstar;
 #endif
@@ -443,7 +449,7 @@ public:
     uview_2d<Spack> w3;
     uview_2d<Spack> wqls_sec;
     uview_2d<Spack> brunt;
-#ifdef SCREAM_SMALL_KERNELS
+#ifdef SCREAM_SHOC_SMALL_KERNELS
     uview_2d<Spack> rho_zt;
     uview_2d<Spack> shoc_qv;
     uview_2d<Spack> tabs;
@@ -501,7 +507,7 @@ protected:
   SHF::SHOCOutput output;
   SHF::SHOCHistoryOutput history_output;
   SHF::SHOCRuntime runtime_options;
-#ifdef SCREAM_SMALL_KERNELS
+#ifdef SCREAM_SHOC_SMALL_KERNELS
   SHF::SHOCTemporaries temporaries;
 #endif
 

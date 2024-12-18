@@ -12,7 +12,7 @@ module elm_driver
   use shr_sys_mod            , only : shr_sys_flush
   use shr_log_mod            , only : errMsg => shr_log_errMsg
   use elm_varpar             , only : nlevtrc_soil, nlevsoi
-  use elm_varctl             , only : wrtdia, iulog, create_glacier_mec_landunit, use_fates, use_betr, use_extrasnowlayers
+  use elm_varctl             , only : wrtdia, iulog, create_glacier_mec_landunit, use_fates, use_betr, use_firn_percolation_and_compaction
   use elm_varctl             , only : use_cn, use_lch4, use_voc, use_noio, use_c13, use_c14
   use elm_varctl             , only : use_erosion, use_fates_sp, use_fan
   use elm_varctl             , only : mpi_sync_nstep_freq
@@ -1604,6 +1604,8 @@ contains
 
          qflx_glcice        => col_wf%qflx_glcice            , & ! Output: [real(r8) (:)   ]  flux of new glacier ice (mm H2O/s) [+ = ice grows]
 
+         qflx_glcice_diag   => col_wf%qflx_glcice_diag       , & ! Output: [real(r8) (:)   ]  flux of new glacier ice (mm H2O/s) [+ = ice grows]
+
          eflx_bot           => col_ef%eflx_bot              , & ! Output: [real(r8) (:)   ]  heat flux from beneath soil/ice column (W/m**2)
 
          cisun_z            => photosyns_vars%cisun_z_patch              , & ! Output: [real(r8) (:)   ]  intracellular sunlit leaf CO2 (Pa)
@@ -1622,7 +1624,7 @@ contains
          ! Save snow mass at previous time step
          h2osno_old(c) = h2osno(c)
 
-         if (.not. use_extrasnowlayers) then
+         if (.not. use_firn_percolation_and_compaction) then
             ! Decide whether to cap snow
             if (h2osno(c) > h2osno_max) then
                do_capsnow(c) = .true.
@@ -1637,6 +1639,7 @@ contains
 
          ! Initialize qflx_glcice everywhere, to zero.
          qflx_glcice(c) = 0._r8
+         qflx_glcice_diag(c) = 0._r8
 
       end do
 
@@ -1790,7 +1793,7 @@ contains
          qflx_snow_grnd_patch(bounds%begp:bounds%endp), &
          qflx_snow_grnd_col  (bounds%begc:bounds%endc))
 
-    if (.not. use_extrasnowlayers) then
+    if (.not. use_firn_percolation_and_compaction) then
        call p2c (bounds, num_allc, filter_allc, &
             veg_wf%qflx_snwcp_liq(bounds%begp:bounds%endp), &
             col_wf%qflx_snwcp_liq(bounds%begc:bounds%endc))

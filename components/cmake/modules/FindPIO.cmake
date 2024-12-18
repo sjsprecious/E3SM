@@ -18,6 +18,9 @@ endif()
 if (PIO_VERSION STREQUAL 2)
   # This is a pio2 library
   set(PIOLIBS "${PIO_LIBDIR}/libpiof.a;${PIO_LIBDIR}/libpioc.a")
+  if (DEFINED ENV{ADIOS2_ROOT})
+    list(APPEND PIOLIBS "${PIO_LIBDIR}/libadios2pio-nm-lib.a")
+  endif()
 else()
   # This is a pio1 library
   set(PIOLIBS "${PIO_LIBDIR}/libpio.a")
@@ -39,6 +42,9 @@ endif()
 # we can assume that an MPI case with ADIOS2_ROOT set is probably
 # using adios.
 if (NOT MPILIB STREQUAL "mpi-serial" AND DEFINED ENV{ADIOS2_ROOT})
+  if(DEFINED ENV{BLOSC2_ROOT})
+    set(ENV{Blosc2_DIR} "$ENV{BLOSC2_ROOT}")
+  endif()
   find_package(MPI REQUIRED COMPONENTS C)
   find_package(ADIOS2 REQUIRED COMPONENTS C)
   list(APPEND PIOLIBS adios2::adios2)

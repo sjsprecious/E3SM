@@ -5,6 +5,7 @@
 
 #include "ekat/util/ekat_string_utils.hpp"
 #include "ekat/ekat_scalar_traits.hpp"
+#include "ekat/logging/ekat_logger.hpp"
 
 #include <vector>
 
@@ -52,7 +53,6 @@ struct Constants
   static constexpr Scalar SXTH          = 1.0/6.0;
   static constexpr Scalar PIOV3         = Pi*THIRD;
   static constexpr Scalar PIOV6         = Pi*SXTH;
-  static constexpr Scalar AIMM          = 0.65;
   static constexpr Scalar BIMM          = 2.0;
   static constexpr Scalar CONS1         = PIOV6*RHOW;
   static constexpr Scalar CONS2         = 4.*PIOV3*RHOW;
@@ -76,13 +76,8 @@ struct Constants
   static constexpr Scalar INV_CP        = 1.0/CP;
   //  static constexpr Scalar Tol           = ekat::is_single_precision<Real>::value ? 2e-5 : 1e-14;
   static constexpr Scalar macheps = std::numeric_limits<Real>::epsilon();
-  static constexpr Scalar mu_r_const    = 1.0;
   static constexpr Scalar dt_left_tol   = 1.e-4;
   static constexpr Scalar bcn           = 2.;
-  static constexpr Scalar rho_rimeMin   = 50.;
-  static constexpr Scalar rho_rimeMax   = 900.;
-  static constexpr Scalar eci           = 0.5;
-  static constexpr Scalar eri           = 1.0;
   static constexpr Scalar dropmass      = 5.2e-7;
   static constexpr Scalar NCCNST        = 200.0e+6;
   static constexpr Scalar incloud_limit = 5.1e-3;
@@ -100,6 +95,7 @@ struct Constants
   static constexpr Scalar basetemp      = 300.0;
   static constexpr Scalar r_earth       = 6.376e6; // Radius of the earth in m
   static constexpr Scalar stebol        = 5.67e-8; // Stefan-Boltzmann's constant (W/m^2/K^4)
+  static constexpr Scalar omega         = 7.292e-5; // Earth's rotation (rad/sec)
 
   // Table dimension constants
   static constexpr int VTABLE_DIM0    = 300;

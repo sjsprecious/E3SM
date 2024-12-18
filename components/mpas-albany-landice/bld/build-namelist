@@ -620,6 +620,7 @@ add_default($nl, 'config_pio_stride');
 add_default($nl, 'config_year_digits');
 add_default($nl, 'config_output_external_velocity_solver_data');
 add_default($nl, 'config_write_albany_ascii_mesh');
+add_default($nl, 'config_create_all_logs_in_e3sm');
 
 #################################
 # Namelist group: decomposition #
@@ -663,6 +664,7 @@ add_default($nl, 'config_SGH_bed_roughness');
 add_default($nl, 'config_SGH_bed_roughness_max');
 add_default($nl, 'config_SGH_creep_coefficient');
 add_default($nl, 'config_SGH_englacial_porosity');
+add_default($nl, 'config_SGH_use_iceThicknessHydro');
 add_default($nl, 'config_SGH_chnl_active');
 add_default($nl, 'config_SGH_chnl_include_DCFL');
 add_default($nl, 'config_SGH_chnl_alpha');
@@ -673,6 +675,7 @@ add_default($nl, 'config_SGH_incipient_channel_width');
 add_default($nl, 'config_SGH_include_pressure_melt');
 add_default($nl, 'config_SGH_shmip_forcing');
 add_default($nl, 'config_SGH_basal_melt');
+add_default($nl, 'config_SGH_iter_smooth_waterPressureSlopeNormal');
 
 ##################################
 # Namelist group: AM_globalStats #

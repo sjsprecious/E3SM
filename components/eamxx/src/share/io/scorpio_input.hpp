@@ -1,10 +1,8 @@
 #ifndef SCREAM_SCORPIO_INPUT_HPP
 #define SCREAM_SCORPIO_INPUT_HPP
 
-#include "share/io/scream_scorpio_interface.hpp"
 #include "share/field/field_manager.hpp"
 #include "share/grid/abstract_grid.hpp"
-#include "share/grid/grids_manager.hpp"
 
 #include "ekat/ekat_parameter_list.hpp"
 #include "ekat/logging/ekat_logger.hpp"
@@ -23,22 +21,11 @@
  *  -----
  *  Input Parameters
  *    Filename: STRING
- *    Fields:   ARRAY OF STRINGS
+ *    Field Names:   ARRAY OF STRINGS
  *  -----
  *  The meaning of these parameters is the following:
  *   - Filename: the name of the input file to be read.
- *   - Fields: list of names of fields to load from file. Should match the name in the file and the name in the field manager.
- *  Note: you can specify lists (such as the 'Fields' list above) with either of the two syntaxes
- *    Fields: [field_name1, field_name2, ... , field_name_N]
- *    Fields:
- *      - field_name_1
- *      - field_name_2
- *        ...
- *      - field_name_N
- *  Note: an alternative way of specifying Fields names is to have
- *    Grid: STRING
- *    Fields:
- *      $GRID: [field_name1,...,field_name_N]
+ *   - Field Names: list of names of fields to load from file. Should match the name in the file and the name in the field manager.
  *
  *  TODO: add a rename option if variable names differ in file and field manager.
  *
@@ -55,8 +42,6 @@ class AtmosphereInput
 public:
   using fm_type       = FieldManager;
   using grid_type     = AbstractGrid;
-  using gm_type       = GridsManager;
-  using remapper_type = AbstractRemapper;
 
   using KT = KokkosTypes<DefaultDevice>;
   template<int N>
@@ -74,9 +59,15 @@ public:
                    const std::map<std::string,FieldLayout>&  layouts);
   AtmosphereInput (const std::string& filename,
                    const std::shared_ptr<const grid_type>& grid,
-                   const std::vector<Field>& fields);
+                   const std::vector<Field>& fields,
+                   const bool skip_grid_checks = false);
 
+  // Due to resource acquisition (in scorpio), avoid copies
+  AtmosphereInput (const AtmosphereInput&) = delete;
   ~AtmosphereInput ();
+
+  // Due to resource acquisition (in scorpio), avoid copies
+  AtmosphereInput& operator= (const AtmosphereInput&) = delete;
 
   // --- Methods --- //
   // Initialize the class for reading into FieldManager-owned fields.
@@ -122,12 +113,9 @@ protected:
                   const std::map<std::string,FieldLayout>&  layouts);
   void init_scorpio_structures ();
 
-  void register_variables();
-  void set_degrees_of_freedom();
+  void set_decompositions();
 
   std::vector<std::string> get_vec_of_dims (const FieldLayout& layout);
-  std::string get_io_decomp (const FieldLayout& layout);
-  std::vector<scorpio::offset_t> get_var_dof_offsets (const FieldLayout& layout);
 
   // Internal variables
   ekat::ParameterList   m_params;

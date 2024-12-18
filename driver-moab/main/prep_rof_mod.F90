@@ -1,7 +1,7 @@
 module prep_rof_mod
 
 #include "shr_assert.h"
-  use shr_kind_mod,     only: r8 => SHR_KIND_R8
+  use shr_kind_mod,     only: R8 => SHR_KIND_R8
   use shr_kind_mod,     only: cs => SHR_KIND_CS
   use shr_kind_mod,     only: cl => SHR_KIND_CL
   use shr_kind_mod,     only: cxx => SHR_KIND_CXX
@@ -15,7 +15,7 @@ module prep_rof_mod
   use seq_comm_mct,     only: mboxid   
   use seq_comm_mct,     only: mbintxlr ! iMOAB id for intx mesh between land and river
   use seq_comm_mct,     only : atm_pg_active  ! whether the atm uses FV mesh or not ; made true if fv_nphys > 0
-  use dimensions_mod,   only : np     ! for atmosphere degree 
+  !use dimensions_mod,   only : np     ! for atmosphere degree 
   use seq_comm_mct,     only: seq_comm_getData=>seq_comm_setptrs
   use seq_infodata_mod, only: seq_infodata_type, seq_infodata_getdata
   use shr_log_mod     , only: errMsg => shr_log_errMsg
@@ -30,6 +30,7 @@ module prep_rof_mod
   use component_type_mod, only: ocn ! used for context for projection towards ocean from rof !
   use prep_lnd_mod, only: prep_lnd_get_mapper_Fr2l
   use map_lnd2rof_irrig_mod, only: map_lnd2rof_irrig
+  use seq_comm_mct,     only: mb_rof_aream_computed  ! signal
 
   use iso_c_binding
 #ifdef MOABCOMP
@@ -112,22 +113,22 @@ module prep_rof_mod
 
   ! accumulation variables over moab fields 
   character(CXX)                        :: sharedFieldsLndRof ! used in moab to define l2racc_lm
-  real (kind=r8) , allocatable, private, target :: l2racc_lm(:,:)   ! lnd export, lnd grid, cpl pes
-  real (kind=r8) , allocatable, private :: l2x_lm2(:,:)  ! basically l2x_lm, but in another copy, on rof module
+  real (kind=R8) , allocatable, private, target :: l2racc_lm(:,:)   ! lnd export, lnd grid, cpl pes
+  real (kind=R8) , allocatable, private :: l2x_lm2(:,:)  ! basically l2x_lm, but in another copy, on rof module
   integer        , target  :: l2racc_lm_cnt  ! l2racc_lm: number of time samples accumulated
   integer :: nfields_sh_lr ! number of fields in sharedFieldsLndRof
   integer :: lsize_lm ! size of land in moab, local
 
   character(CXX)       :: sharedFieldsAtmRof ! used in moab to define a2racc_am
-  real (kind=r8) , allocatable, private ::  a2racc_am(:,:)   ! atm export, atm grid, cpl pes
-  real (kind=r8) , allocatable, private :: a2x_am2(:,:)  ! basically a2x_am, but in another copy, on rof module
+  real (kind=R8) , allocatable, private ::  a2racc_am(:,:)   ! atm export, atm grid, cpl pes
+  real (kind=R8) , allocatable, private :: a2x_am2(:,:)  ! basically a2x_am, but in another copy, on rof module
   integer        , target  :: a2racc_am_cnt  ! a2racc_am: number of time samples accumulated 
   integer :: nfields_sh_ar ! number of fields in sharedFieldsAtmRof
   integer :: lsize_am ! size of atm in moab, local
 
   character(CXX)       :: sharedFieldsOcnRof ! used in moab to define o2racc_om
-  real (kind=r8) , allocatable, private, target ::  o2racc_om(:,:)   ! ocn export, ocn grid, cpl pes
-  real (kind=r8) , allocatable, private :: o2r_om2(:,:)  ! basically o2x_om, but in another copy, on rof module, only shared with rof
+  real (kind=R8) , allocatable, private, target ::  o2racc_om(:,:)   ! ocn export, ocn grid, cpl pes
+  real (kind=R8) , allocatable, private :: o2r_om2(:,:)  ! basically o2x_om, but in another copy, on rof module, only shared with rof
   integer        , target  :: o2racc_om_cnt  ! o2racc_om: number of time samples accumulated
   integer :: nfields_sh_or ! number of fields in sharedFieldsOcnRof
   integer :: lsize_om ! size of ocn in moab, local
@@ -145,12 +146,12 @@ module prep_rof_mod
   logical :: samegrid_al   ! samegrid atm and lnd
 
   ! moab stuff
-   real (kind=r8) , allocatable, private :: fractions_rm (:,:) ! will retrieve the fractions from rof, and use them
+   real (kind=R8) , allocatable, private :: fractions_rm (:,:) ! will retrieve the fractions from rof, and use them
   !  they were init with 
   ! character(*),parameter :: fraclist_r = 'lfrac:lfrin:rfrac'  in moab, on the fractions 
-  real (kind=r8) , allocatable, private :: x2r_rm (:,:) ! result of merge
-  real (kind=r8) , allocatable, private :: a2x_rm (:,:)
-  real (kind=r8) , allocatable, private :: l2x_rm (:,:)
+  real (kind=R8) , allocatable, private :: x2r_rm (:,:) ! result of merge
+  real (kind=R8) , allocatable, private :: a2x_rm (:,:)
+  real (kind=R8) , allocatable, private :: l2x_rm (:,:)
 
   !================================================================================================
 
@@ -264,8 +265,9 @@ contains
        l2racc_lx_cnt = 0
 #ifdef HAVE_MOAB
        ! this l2racc_lm will be over land size ? 
-       sharedFieldsLndRof=trim( mct_aVect_exportRList2c(l2racc_lx(1)) )
+       sharedFieldsLndRof=''
        nfields_sh_lr = mct_aVect_nRAttr(l2racc_lx(1))
+       if( nfields_sh_lr /= 0 ) sharedFieldsLndRof=trim( mct_aVect_exportRList2c(l2racc_lx(1)) )
        tagname = trim(sharedFieldsLndRof)//C_NULL_CHAR
        ! find the size of land mesh locally
        ! find out the number of local elements in moab mesh lnd instance on coupler
@@ -326,6 +328,7 @@ contains
                write(logunit,*) subname,' error in defining tags for seq_flds_a2x_fields on rof cpl'
                call shr_sys_abort(subname//' ERROR in  defining tags for seq_flds_a2x_fields on rof cpl')
             endif
+            call seq_comm_getData(CPLID ,mpigrp=mpigrp_CPLID)
             if (samegrid_lr) then
                ! the same mesh , lnd and rof use the same dofs, but restricted 
                ! we do not compute intersection, so we will have to just send data from lnd to rof and viceversa, by GLOBAL_ID matching
@@ -340,12 +343,12 @@ contains
                   call shr_sys_abort(subname//' ERROR in computing comm graph , lnd-rof')
                endif
                ! context for rearrange is target in this case
-            if ( mapper_Fl2r%src_mbid .gt. -1 ) then
-                if (iamroot_CPLID) then
-                     write(logunit,F00) 'overwriting '//trim(mapper_Fl2r%mbname) &
-                             //' mapper_Fl2r'
-                endif
-            endif
+               if ( mapper_Fl2r%src_mbid .gt. -1 ) then
+                  if (iamroot_CPLID) then
+                        write(logunit,F00) 'overwriting '//trim(mapper_Fl2r%mbname) &
+                              //' mapper_Fl2r'
+                  endif
+               endif
                mapper_Fl2r%src_mbid = mblxid
                mapper_Fl2r%tgt_mbid = mbrxid
                mapper_Fl2r%src_context = lnd(1)%cplcompid
@@ -362,7 +365,6 @@ contains
                ! we also need to compute the comm graph for the second hop, from the lnd on coupler to the 
                ! lnd for the intx lnd-rof context (coverage)
                !    
-               call seq_comm_getData(CPLID ,mpigrp=mpigrp_CPLID) 
                type1 = 3 ! land is FV now on coupler side
                type2 = 3;
 
@@ -373,12 +375,12 @@ contains
                   call shr_sys_abort(subname//' ERROR in computing comm graph for second hop, lnd-rof')
                endif
                ! now take care of the mapper 
-            if ( mapper_Fl2r%src_mbid .gt. -1 ) then
-                if (iamroot_CPLID) then
-                     write(logunit,F00) 'overwriting '//trim(mapper_Fl2r%mbname) &
-                             //' mapper_Fl2r'
-                endif
-            endif
+               if ( mapper_Fl2r%src_mbid .gt. -1 ) then
+                  if (iamroot_CPLID) then
+                        write(logunit,F00) 'overwriting '//trim(mapper_Fl2r%mbname) &
+                              //' mapper_Fl2r'
+                  endif
+               endif
                mapper_Fl2r%src_mbid = mblxid
                mapper_Fl2r%tgt_mbid = mbrxid
                mapper_Fl2r%intx_mbid = mbintxlr 
@@ -416,6 +418,7 @@ contains
                                                 fNoBubble, monotonicity, volumetric, fInverseDistanceMap, &
                                                 noConserve, validate, &
                                                 trim(dofnameS), trim(dofnameT) )
+               mb_rof_aream_computed = .true. ! signal
                if (ierr .ne. 0) then
                   write(logunit,*) subname,' error in computing lr weights '
                   call shr_sys_abort(subname//' ERROR in computing lr weights ')
@@ -435,7 +438,6 @@ contains
                endif
 #endif
             end if ! if ((mblxid .ge. 0) .and.  (mbrxid .ge. 0))
-   ! endif HAVE_MOAB 
          endif ! samegrid_lr
 #endif
           ! We'll map irrigation specially, so exclude this from the list of l2r fields
@@ -469,9 +471,10 @@ contains
        a2racc_ax_cnt = 0
 #ifdef HAVE_MOAB
        ! this a2racc_am will be over atm size 
-       sharedFieldsAtmRof=trim( mct_aVect_exportRList2c(a2racc_ax(1)) )
-       tagname = trim(sharedFieldsAtmRof)//C_NULL_CHAR
+       sharedFieldsAtmRof=''
        nfields_sh_ar = mct_aVect_nRAttr(a2racc_ax(1))
+       if (nfields_sh_ar /= 0 ) sharedFieldsAtmRof = trim( mct_aVect_exportRList2c(a2racc_ax(1)) )
+       tagname = trim(sharedFieldsAtmRof)//C_NULL_CHAR
        ! find the size of atm mesh locally
        ! find out the number of local elements in moab mesh atm instance on coupler
        ierr  = iMOAB_GetMeshInfo ( mbaxid, nvert, nvise, nbl, nsurf, nvisBC )
@@ -582,7 +585,7 @@ contains
             else ! this part does not work, anyway
               dm1 = "cgll"//C_NULL_CHAR
               dofnameS="GLOBAL_DOFS"//C_NULL_CHAR
-              orderS = np !  it should be 4
+              orderS = 4 ! np !  it should be 4
             endif
             dm2 = "fv"//C_NULL_CHAR
             dofnameT="GLOBAL_ID"//C_NULL_CHAR
@@ -675,9 +678,10 @@ contains
 #ifdef HAVE_MOAB
 
        ! this o2racc_om will be over ocn size 
-       sharedFieldsOcnRof=trim( mct_aVect_exportRList2c(o2racc_ox(1)) )
-       tagname = trim(sharedFieldsOcnRof)//C_NULL_CHAR
+       sharedFieldsOcnRof=''
        nfields_sh_or = mct_aVect_nRAttr(o2racc_ox(1))
+       if ( nfields_sh_or /= 0 ) sharedFieldsOcnRof = trim( mct_aVect_exportRList2c(o2racc_ox(1)) )
+       tagname = trim(sharedFieldsOcnRof)//C_NULL_CHAR
       
       ! find the size of ocn mesh locally
       ! find out the number of local elements in moab mesh ocn instance on coupler
@@ -1033,10 +1037,12 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
     tagname = trim(sharedFieldsLndRof)//C_NULL_CHAR
     arrsize = nfields_sh_lr * lsize_lm
     ent_type = 1 ! cell type
-    ierr = iMOAB_SetDoubleTagStorage ( mblxid, tagname, arrsize , ent_type, l2racc_lm)
-    if (ierr .ne. 0) then
-      call shr_sys_abort(subname//' error in setting accumulated shared fields on rof on land instance ')
-    endif
+    if (arrsize > 0) then
+      ierr = iMOAB_SetDoubleTagStorage ( mblxid, tagname, arrsize , ent_type, l2racc_lm)
+      if (ierr .ne. 0) then
+         call shr_sys_abort(subname//' error in setting accumulated shared fields on rof on land instance ')
+      endif
+   endif
 
 #ifdef MOABDEBUG
     if (mblxid .ge. 0 ) then !  we are on coupler pes, for sure
@@ -1058,10 +1064,12 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
     tagname = trim(sharedFieldsAtmRof)//C_NULL_CHAR
     arrsize = nfields_sh_ar * lsize_am
     ent_type = 1 ! cell type
-    ierr = iMOAB_SetDoubleTagStorage ( mbaxid, tagname, arrsize , ent_type, a2racc_am)
-    if (ierr .ne. 0) then
-      call shr_sys_abort(subname//' error in setting accumulated shared fields on rof on atm instance ')
-    endif
+    if (arrsize > 0) then
+      ierr = iMOAB_SetDoubleTagStorage ( mbaxid, tagname, arrsize , ent_type, a2racc_am)
+      if (ierr .ne. 0) then
+         call shr_sys_abort(subname//' error in setting accumulated shared fields on rof on atm instance ')
+      endif
+   endif
 #ifdef MOABDEBUG
     if (mbaxid .ge. 0 ) then !  we are on coupler pes, for sure
      write(lnum,"(I0.2)")num_moab_exports
@@ -1081,10 +1089,12 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
     tagname = trim(sharedFieldsOcnRof)//C_NULL_CHAR
     arrsize = nfields_sh_or * lsize_om
     ent_type = 1 ! cell type
-    ierr = iMOAB_SetDoubleTagStorage ( mboxid, tagname, arrsize , ent_type, o2racc_om)
-    if (ierr .ne. 0) then
-      call shr_sys_abort(subname//' error in setting accumulated shared fields on rof on ocn instance ')
-    endif
+    if (arrsize > 0 ) then
+      ierr = iMOAB_SetDoubleTagStorage ( mboxid, tagname, arrsize , ent_type, o2racc_om)
+      if (ierr .ne. 0) then
+         call shr_sys_abort(subname//' error in setting accumulated shared fields on rof on ocn instance ')
+      endif
+   endif
 #ifdef MOABDEBUG
     if (mboxid .ge. 0 ) then !  we are on coupler pes, for sure
      write(lnum,"(I0.2)")num_moab_exports
@@ -1215,7 +1225,7 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
     integer, save :: index_x2r_coszen_str
 
     integer, save :: index_frac
-    real(r8)      :: frac
+    real(R8)      :: frac
     character(CL) :: fracstr
     logical, save :: first_time = .true.
     logical, save :: flds_wiso_rof = .false.
@@ -1521,7 +1531,7 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
     integer, save :: index_x2r_coszen_str
 
     integer, save :: index_frac
-    real(r8)      :: frac
+    real(R8)      :: frac
     character(CL) :: fracstr
     logical, save :: first_time = .true.
     logical, save :: flds_wiso_rof = .false.
@@ -1540,7 +1550,7 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
     character*32             :: outfile, wopts, lnum
 #endif
 #ifdef MOABCOMP
-    real(r8)                 :: difference
+    real(R8)                 :: difference
     type(mct_list) :: temp_list
     integer :: size_list, index_list
     type(mct_string)    :: mctOStr  !
@@ -1987,7 +1997,7 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
   end function prep_rof_get_o2racc_om_cnt
 
   function prep_rof_get_o2racc_om()
-   real(r8), DIMENSION(:, :), pointer :: prep_rof_get_o2racc_om
+   real(R8), DIMENSION(:, :), pointer :: prep_rof_get_o2racc_om
    prep_rof_get_o2racc_om => o2racc_om
   end function prep_rof_get_o2racc_om
 
@@ -2003,7 +2013,7 @@ use iMOAB , only :  iMOAB_GetDoubleTagStorage
   end function prep_rof_get_l2racc_lm_cnt
 
   function prep_rof_get_l2racc_lm()
-    real(r8), DIMENSION(:, :), pointer :: prep_rof_get_l2racc_lm
+    real(R8), DIMENSION(:, :), pointer :: prep_rof_get_l2racc_lm
     prep_rof_get_l2racc_lm => l2racc_lm
   end function prep_rof_get_l2racc_lm
 

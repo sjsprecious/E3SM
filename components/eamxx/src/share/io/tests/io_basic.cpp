@@ -87,7 +87,7 @@ get_fm (const std::shared_ptr<const AbstractGrid>& grid,
   //  - Uniform_int_distribution returns an int, and the randomize
   //    util checks that return type matches the Field data type.
   //    So wrap the int pdf in a lambda, that does the cast.
-  std::mt19937_64 engine(seed); 
+  std::mt19937_64 engine(seed);
   auto my_pdf = [&](std::mt19937_64& engine) -> Real {
     std::uniform_int_distribution<int> pdf (0,100);
     Real v = pdf(engine);
@@ -105,7 +105,7 @@ get_fm (const std::shared_ptr<const AbstractGrid>& grid,
   };
 
   auto fm = std::make_shared<FieldManager>(grid);
-  
+
   const auto units = ekat::units::Units::nondimensional();
   int count=0;
   using stratts_t = std::map<std::string,std::string>;
@@ -145,41 +145,55 @@ void write (const std::string& avg_type, const std::string& freq_units,
 
   // Create output params
   ekat::ParameterList om_pl;
-  om_pl.set("MPI Ranks in Filename",true);
   om_pl.set("filename_prefix",std::string("io_basic"));
   om_pl.set("Field Names",fnames);
   om_pl.set("Averaging Type", avg_type);
   auto& ctrl_pl = om_pl.sublist("output_control");
   ctrl_pl.set("frequency_units",freq_units);
   ctrl_pl.set("Frequency",freq);
-  ctrl_pl.set("MPI Ranks in Filename",true);
   ctrl_pl.set("save_grid_data",false);
+
+  // While setting this is in practice irrelevant (we would close
+  // the file anyways at the end of the run), we can test that the OM closes
+  // the file AS SOON as it's full (before calling finalize)
+  int max_snaps = num_output_steps;
+  if (avg_type=="INSTANT") {
+    ++max_snaps;
+  }
+  om_pl.set("Max Snapshots Per File", max_snaps);
 
   // Create Output manager
   OutputManager om;
 
   // Attempt to use invalid fp precision string
   om_pl.set("Floating Point Precision",std::string("triple"));
-  REQUIRE_THROWS (om.setup(comm,om_pl,fm,gm,t0,t0,false));
+  om.initialize(comm,om_pl,t0,false);
+  REQUIRE_THROWS (om.setup(fm,gm));
   om_pl.set("Floating Point Precision",std::string("single"));
-  om.setup(comm,om_pl,fm,gm,t0,t0,false);
+  om.initialize(comm,om_pl,t0,false);
+  om.setup(fm,gm);
 
   // Time loop: ensure we always hit 3 output steps
   const int nsteps = num_output_steps*freq;
   auto t = t0;
   for (int n=0; n<nsteps; ++n) {
+    om.init_timestep(t,dt);
     // Update time
     t += dt;
 
     // Add 1 to all fields entries
-    for (const auto& n : fnames) {
-      auto f = fm->get_field(n);
+    for (const auto& name : fnames) {
+      auto f = fm->get_field(name);
       add(f,1.0);
     }
 
     // Run output manager
     om.run (t);
   }
+
+  // Check that the file was closed, since we reached full capacity
+  const auto& file_specs = om.output_file_specs();
+  REQUIRE (not file_specs.is_open);
 
   // Close file and cleanup
   om.finalize();
@@ -231,6 +245,7 @@ void read (const std::string& avg_type, const std::string& freq_units,
   // The last one comes from
   //   (a+1 + a+2 +..+a+freq)/freq =
   //   a + sum(i)/freq = a + (freq(freq+1)/2)/freq
+  //   = a + (freq+1)/2
   double delta = (freq+1)/2.0;
 
   for (int n=0; n<num_writes; ++n) {
@@ -257,14 +272,12 @@ void read (const std::string& avg_type, const std::string& freq_units,
   }
 
   // Check that the expected metadata was appropriately set for each variable
-  Real fill_out;
-  std::string att_test;
   for (const auto& fn: fnames) {
-    scorpio::get_variable_metadata(filename,fn,"_FillValue",fill_out);
-    REQUIRE(fill_out==constants::DefaultFillValue<float>().value);
+    auto att_fill = scorpio::get_attribute<float>(filename,fn,"_FillValue");
+    REQUIRE(att_fill==constants::DefaultFillValue<float>().value);
 
-    scorpio::get_variable_metadata(filename,fn,"test",att_test);
-    REQUIRE (att_test==fn);
+    auto att_str = scorpio::get_attribute<std::string>(filename,fn,"test");
+    REQUIRE (att_str==fn);
   }
 }
 
@@ -284,7 +297,7 @@ TEST_CASE ("io_basic") {
   };
 
   ekat::Comm comm(MPI_COMM_WORLD);
-  scorpio::eam_init_pio_subsystem(comm);
+  scorpio::init_subsystem(comm);
 
   auto seed = get_random_test_seed(&comm);
 
@@ -304,11 +317,11 @@ TEST_CASE ("io_basic") {
     for (const auto& avg : avg_type) {
       print("   -> Averaging type: " + avg + " ", 40);
       write(avg,units,freq,seed,comm);
-      read(avg,units,freq,seed,comm);
+      read (avg,units,freq,seed,comm);
       print(" PASS\n");
     }
   }
-  scorpio::eam_pio_finalize();
+  scorpio::finalize_subsystem();
 }
 
 } // anonymous namespace

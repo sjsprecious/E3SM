@@ -91,12 +91,12 @@ module ocn_time_integration_split
       numTSIterations, &! number of outer timestep iterations
       nBtrSubcycles     ! number of barotropic subcycles
 
-   integer :: ssh_sal_on
    integer :: &
       thickEdgeFluxChoice ! choice of thickness flux type
    integer, parameter :: &
       thickEdgeFluxCenter   = 1, &! use mean thickness of cell neighbors
       thickEdgeFluxUpwind   = 2   ! use upwind cell thickness at edge
+   real (kind=RKIND) :: pgf_sal_on
 
    real (kind=RKIND) :: &
       useVelocityCorrection,&! mask for velocity correction
@@ -280,6 +280,8 @@ module ocn_time_integration_split
 
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracersNew
 
+      real (kind=RKIND), pointer :: forcingTimeIncrement
+
       ! Remap variables
       real (kind=RKIND), dimension(:,:), pointer :: &
          layerThicknessLagNew
@@ -397,6 +399,11 @@ module ocn_time_integration_split
       call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracersNew, 2)
 
       allocate(baroclinicThickness(nEdgesAll+1))
+
+      call mpas_pool_get_array(forcingPool, 'forcingTimeIncrement', &
+                                             forcingTimeIncrement)
+
+      forcingTimeIncrement = 0.0_RKIND
 
       if (config_transport_tests_flow_id > 0) then
         ! This is a transport test. Write advection velocity from prescribed
@@ -1020,8 +1027,8 @@ module ocn_time_integration_split
                         sshSubcycleCurWithTides(iCell) = &
                                  sshSubcycleCur(iCell) - &
                               tidalPotentialEta(iCell) - &
-                           ssh_sal_on * ssh_sal(iCell) - &
-                           (1 - ssh_sal_on) * self_attraction_and_loading_beta* &
+                           pgf_sal_on * pgf_sal(iCell) - &
+                           (1.0_RKIND - pgf_sal_on) * self_attraction_and_loading_beta* &
                                  sshSubcycleCur(iCell)
                      end do
                      !$omp end do
@@ -1268,15 +1275,15 @@ module ocn_time_integration_split
                         sshSubcycleCurWithTides(iCell) = &
                                  sshSubcycleCur(iCell) - &
                               tidalPotentialEta(iCell) - &
-                           ssh_sal_on * ssh_sal(iCell) - &
-                           (1 - ssh_sal_on) * self_attraction_and_loading_beta* &
+                           pgf_sal_on * pgf_sal(iCell) - &
+                           (1.0_RKIND - pgf_sal_on) * self_attraction_and_loading_beta* &
                                  sshSubcycleCur(iCell)
 
                         sshSubcycleNewWithTides(iCell) = &
                                  sshSubcycleNew(iCell) - &
                               tidalPotentialEta(iCell) - &
-                           ssh_sal_on * ssh_sal(iCell) - &
-                           (1 - ssh_sal_on) * self_attraction_and_loading_beta* &
+                           pgf_sal_on * pgf_sal(iCell) - &
+                           (1.0_RKIND - pgf_sal_on) * self_attraction_and_loading_beta* &
                                  sshSubcycleNew(iCell)
                      end do
                      !$omp end do
@@ -2225,7 +2232,7 @@ module ocn_time_integration_split
 
                            ! Reset tracer2 to 2 in top n layers
                            ! in zonal bands, and 1 outside
-                           lat = latCell(iCell)*180./3.1415
+                           lat = latCell(iCell)*180.0_RKIND/pi
                            if (     lat>-60.0.and.lat<-55.0 &
                                 .or.lat>-40.0.and.lat<-35.0 &
                                 .or.lat>- 2.5.and.lat<  2.5 &
@@ -2242,7 +2249,7 @@ module ocn_time_integration_split
 
                            ! Reset tracer3 to 2 in top n layers
                            ! in zonal bands, and 1 outside
-                           lat = latCell(iCell)*180./3.1415
+                           lat = latCell(iCell)*180.0_RKIND/pi
                            if (     lat>-55.0.and.lat<-50.0 &
                                 .or.lat>-35.0.and.lat<-30.0 &
                                 .or.lat>-15.0.and.lat<-10.0 &
@@ -3071,10 +3078,10 @@ module ocn_time_integration_split
 
       !-----------------------------------------------------------------
       if (config_use_self_attraction_loading) then
-         ! set ssh_sal_on to 1
-         ssh_sal_on = 1
+         ! set pgf_sal_on to 1
+         pgf_sal_on = 1.0_RKIND
       else
-         ssh_sal_on = 0
+         pgf_sal_on = 0.0_RKIND
       endif
 
       self_attraction_and_loading_beta = config_self_attraction_and_loading_beta

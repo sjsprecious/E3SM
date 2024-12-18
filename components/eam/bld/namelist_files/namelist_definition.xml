@@ -473,6 +473,26 @@ Turn on additional verbose output  for integrated conservation checks.
 Default: FALSE
 </entry>
 
+<!-- Transformed Eulerian Mean (TEM) budget outputs -->
+
+<entry id="phys_grid_ctem_zm_nbas" type="integer"  category="diagnostics"
+       group="phys_grid_ctem_opts" valid_values="" >
+Number of zonal mean basis functions (number of m=0 spherical harmonics) used in
+Transformed Eulerian Mean (TEM) diagnostics
+</entry>
+
+<entry id="phys_grid_ctem_za_nlat" type="integer"  category="diagnostics"
+       group="phys_grid_ctem_opts" valid_values="" >
+Number of latitude grid points for zonal average TEM diagnostics history fields
+</entry>
+
+<entry id="phys_grid_ctem_nfreq" type="integer"  category="diagnostics"
+       group="phys_grid_ctem_opts" valid_values="" >
+  Frequency of TEM diagnostic calculations.
+  If &gt; 0, frequency is specified as number of timesteps.
+  If &lt; 0, frequency is specified as number of hours.
+</entry>
+
 <!-- Dry Convective Adjustment -->
 
 <entry id="nlvdry" type="integer"  category="dry_conv_adj"
@@ -1058,6 +1078,48 @@ Whether or not to enable GWD brute-force energy fix.
 Default: set by build-namelist.
 </entry>
 
+<entry id="use_od_ls" type="logical" category="gw_drag"
+       group="phys_ctl_nl" valid_values="" >
+Whether or not to enable nonlinear orographic gravity wave drag (oGWD).
+Default: set by build-namelist.
+</entry>
+
+<entry id="use_od_bl" type="logical" category="gw_drag"
+       group="phys_ctl_nl" valid_values="" >
+Whether or not to enable flow-blocking drag (FBD).
+Default: set by build-namelist.
+</entry>
+
+<entry id="use_od_ss" type="logical" category="gw_drag"
+       group="phys_ctl_nl" valid_values="" >
+Whether or not to enable small-scale orographic GWD drag (sGWD).
+Default: set by build-namelist.
+</entry>
+
+<entry id="use_od_fd" type="logical" category="pbl"
+       group="phys_ctl_nl" valid_values="" >
+Whether or not to enable turbulent orographic form drag (TOFD).
+Default: set by build-namelist.
+</entry>
+
+<entry id="od_ls_ncleff" type="real" category="gw_drag"
+       group="oro_drag_nl" valid_values="" >
+Tuning parameter of orographic GWD (oGWD). See <varname>use_od_ls</varname>.
+Default: set by build-namelist.
+</entry>
+
+<entry id="od_bl_ncd" type="real" category="gw_drag"
+       group="oro_drag_nl" valid_values="" >
+Tuning parameter of flow-blocking drag (FBD). See <varname>use_od_bl</varname>.
+Default: set by build-namelist.
+</entry>
+
+<entry id="od_ss_sncleff" type="real" category="gw_drag"
+       group="oro_drag_nl" valid_values="" >
+Tuning parameter of small-scale GWD (sGWD). See <varname>use_od_ss</varname>.
+Default: set by build-namelist.
+</entry>
+
 <entry id="pgwv" type="integer" category="gw_drag"
        group="gw_drag_nl" valid_values="" >
 Gravity wave spectrum dimension (wave numbers are from -pgwv to pgwv).
@@ -1080,14 +1142,38 @@ Default: set by build-namelist.
 
 <entry id="gw_convect_hcf" type="real" category="gw_drag"
        group="gw_drag_nl" valid_values="" >
-Heating rate conversion factor associated with convective gravity waves
+Heating rate conversion factor associated with convective GWD [unitless].
+Also often interpretted as "convective fraction" [%].
 Default: 20.0
 </entry>
 
 <entry id="hdepth_scaling_factor" type="real" category="gw_drag"
        group="gw_drag_nl" valid_values="" >
-Scaling factor for the heating depth
+Scaling factor for the heating depth [unitless]
 Default: 1.0
+</entry>
+
+<entry id="gw_convect_hdepth_min" type="real" category="gw_drag"
+       group="gw_drag_nl" valid_values="" >
+minimum hdepth for for convective GWD spectrum lookup table [km]
+Default: 2.5 km
+</entry>
+
+<entry id="gw_convect_storm_speed_min" type="real" category="gw_drag"
+       group="gw_drag_nl" valid_values="" >
+minimum convective storm speed in m/s for convective GWD
+Default: 10.0 m/s
+</entry>
+
+<entry id="gw_convect_plev_src_wind" type="real" category="gw_drag"
+       group="gw_drag_nl" valid_values="" >
+Reference pressure value used for convective storm speed in m/s for convective GWD
+Default: 70000 Pa
+</entry>
+
+<entry id="use_gw_convect_old" type="logical" category="gw_drag"
+       group="gw_drag_nl" valid_values="" >
+switch to revert to old calculation of Beres scheme for heating depth and max
 </entry>
 
 <entry id="effgw_beres" type="real" category="gw_drag"
@@ -4706,7 +4792,9 @@ Default: FALSE
 
 <entry id="precip_off" type="logical" category="scm"
        group="cam_inparm" valid_values="">
-Turn off microphysics computation.
+Turn off microphysics computation for MG2.  For P3 this disables the generation of
+liquid precipitation via autoconversion only, to be used for idealized simulations of
+warm phase boundary layer clouds.
 Default: FALSE
 </entry>                                                                        |
                                                                                 |
@@ -5116,6 +5204,17 @@ Format: YYYY
 Default: 0
 </entry>
 
+<entry id="ext_frc_volc_cycle_yr" type="integer" category="cam_chem"
+       group="chem_inparm" valid_values="" >
+The  cycle year of the volcanic SO2 forcing (3D emissions) data.
+Use this in place of ext_frc_cycle_yr if non-default, to allow different 
+speciciations volcanic emission and aerosols/precursors, which may be 
+invoked for single forcing simulation design.
+if <varname>ext_frc_volc_type</varname>  is 'CYCLICAL'.
+Format: YYYY
+Default: -1
+</entry>
+
 <entry id="ext_frc_fixed_ymd" type="integer" category="cam_chem"
        group="chem_inparm" valid_values="" >
 Default: current model date
@@ -5165,6 +5264,13 @@ Default: set by build-namelist.
 Type of time interpolation for fixed lower boundary data.
 Can be set to 'CYCLICAL', 'SERIAL', 'INTERP_MISSING_MONTHS', or 'FIXED'.
 Default: 'CYCLICAL'
+</entry>
+
+<entry id="ext_frc_volc_type" type="char*32" category="cam_chem"
+       group="chem_inparm" valid_values="NULL,CYCLICAL,SERIAL,INTERP_MISSING_MONTHS,FIXED" >
+Type of time interpolation for fixed lower boundary data. See also ext_frc_volc_cycle_yr.
+Can be set to 'NULL','CYCLICAL', 'SERIAL', 'INTERP_MISSING_MONTHS', or 'FIXED'.
+Default: 'NULL'
 </entry>
 
 <entry id="flbc_cycle_yr" type="integer" category="cam_chem"

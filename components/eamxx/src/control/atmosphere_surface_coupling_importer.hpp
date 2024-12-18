@@ -5,8 +5,6 @@
 #include "ekat/ekat_parameter_list.hpp"
 #include "share/atm_process/SCDataManager.hpp"
 
-#include "control/intensive_observation_period.hpp"
-
 #include "surface_coupling_utils.hpp"
 
 #include <string>
@@ -36,7 +34,6 @@ public:
   using uview_2d = Unmanaged<view_2d<DevT, ScalarT>>;
 
   using name_t = char[32];
-  using iop_ptr = std::shared_ptr<control::IntensiveObservationPeriod>;
 
   // Constructors
   SurfaceCouplingImporter (const ekat::Comm& comm, const ekat::ParameterList& params);
@@ -64,9 +61,6 @@ public:
   // Overwrite imports for IOP cases with IOP file surface data
   void overwrite_iop_imports (const bool called_during_initialization);
 
-  void set_intensive_observation_period (const iop_ptr& iop) {
-    m_intensive_observation_period = iop;
-  }
 protected:
 
   // The three main overrides for the subcomponent
@@ -89,6 +83,14 @@ protected:
   view_2d <DefaultDevice, Real> m_cpl_imports_view_d;
   uview_2d<HostDevice,    Real> m_cpl_imports_view_h;
 
+#ifdef HAVE_MOAB
+  // Views storing a 2d array with dims (num_fields,num_cols) for import data.
+  // The colums index strides faster, since that's what moab does (so we can "view" the
+  // pointer to the whole x2a_am(:,:) array from Fortran)
+  view_2d <DefaultDevice, Real> m_moab_cpl_imports_view_d;
+  uview_2d<HostDevice,    Real> m_moab_cpl_imports_view_h;
+#endif
+
   // Array storing the field names for imports
   name_t* m_import_field_names;
 
@@ -101,9 +103,6 @@ protected:
   // Column info used during import
   view_1d<DefaultDevice, SurfaceCouplingColumnInfo> m_column_info_d;
   decltype(m_column_info_d)::HostMirror             m_column_info_h;
-
-  // Intensive observation period object.
-  iop_ptr m_intensive_observation_period;
 
   // The grid is needed for property checks
   std::shared_ptr<const AbstractGrid> m_grid;

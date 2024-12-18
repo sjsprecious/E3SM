@@ -38,8 +38,6 @@ void Functions<Real,DefaultDevice>
   const uview_2d<Spack>& ni,
   const uview_2d<Spack>& qm,
   const uview_2d<Spack>& bm,
-  const uview_2d<Spack>& latent_heat_vapor,
-  const uview_2d<Spack>& latent_heat_sublim,
   const uview_2d<Spack>& mu_c,
   const uview_2d<Spack>& nu,
   const uview_2d<Spack>& lamc,
@@ -56,7 +54,8 @@ void Functions<Real,DefaultDevice>
   const uview_2d<Spack>& diag_eff_radius_qc,
   const uview_2d<Spack>& diag_eff_radius_qr,
   const uview_1d<bool>& nucleationPossible,
-  const uview_1d<bool>& hydrometeorsPresent)
+  const uview_1d<bool>& hydrometeorsPresent,
+  const P3Runtime& runtime_options)
 {
   using ExeSpace = typename KT::ExeSpace;
   const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(nj, nk_pack);
@@ -76,13 +75,13 @@ void Functions<Real,DefaultDevice>
     //
     p3_main_part3(
       team, nk_pack, max_total_ni, dnu_table_vals, ice_table_vals, ekat::subview(inv_exner, i), ekat::subview(cld_frac_l, i), ekat::subview(cld_frac_r, i),
-      ekat::subview(cld_frac_i, i), ekat::subview(rho, i), ekat::subview(inv_rho, i), ekat::subview(rhofaci, i), ekat::subview(qv, i), 
-      ekat::subview(th_atm, i), ekat::subview(qc, i), ekat::subview(nc, i), ekat::subview(qr, i), ekat::subview(nr, i), ekat::subview(qi, i), 
-      ekat::subview(ni, i), ekat::subview(qm, i), ekat::subview(bm, i), ekat::subview(latent_heat_vapor, i), ekat::subview(latent_heat_sublim, i), 
+      ekat::subview(cld_frac_i, i), ekat::subview(rho, i), ekat::subview(inv_rho, i), ekat::subview(rhofaci, i), ekat::subview(qv, i),
+      ekat::subview(th_atm, i), ekat::subview(qc, i), ekat::subview(nc, i), ekat::subview(qr, i), ekat::subview(nr, i), ekat::subview(qi, i),
+      ekat::subview(ni, i), ekat::subview(qm, i), ekat::subview(bm, i),
       ekat::subview(mu_c, i), ekat::subview(nu, i), ekat::subview(lamc, i), ekat::subview(mu_r, i), ekat::subview(lamr, i),
-      ekat::subview(vap_liq_exchange, i), ekat::subview(ze_rain, i), ekat::subview(ze_ice, i), ekat::subview(diag_vm_qi, i), ekat::subview(diag_eff_radius_qi, i), 
+      ekat::subview(vap_liq_exchange, i), ekat::subview(ze_rain, i), ekat::subview(ze_ice, i), ekat::subview(diag_vm_qi, i), ekat::subview(diag_eff_radius_qi, i),
       ekat::subview(diag_diam_qi, i), ekat::subview(rho_qi, i), ekat::subview(diag_equiv_reflectivity, i), ekat::subview(diag_eff_radius_qc, i),
-      ekat::subview(diag_eff_radius_qr, i));
+      ekat::subview(diag_eff_radius_qr, i), runtime_options);
 
   });
 }

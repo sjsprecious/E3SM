@@ -18,7 +18,7 @@ public:
   FieldAtHeight (const ekat::Comm& comm, const ekat::ParameterList& params);
 
   // The name of the diagnostic
-  std::string name () const { return m_diag_name; }
+  std::string name () const { return "FieldAtHeight"; }
 
   // Set the grid
   void set_grids (const std::shared_ptr<const GridsManager> grids_manager);
@@ -33,6 +33,7 @@ protected:
 
   std::string         m_diag_name;
   std::string         m_z_name;
+  std::string         m_z_suffix;
   std::string         m_field_name;
 
   Real                m_z;

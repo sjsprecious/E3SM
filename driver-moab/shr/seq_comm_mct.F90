@@ -241,12 +241,13 @@ module seq_comm_mct
   integer, public :: mbrmapro ! iMOAB id for read map between river and ocean; it exists on coupler PEs
                               ! similar to intx id, oa, la; 
   integer, public :: mbrxoid  ! iMOAB id for rof migrated to coupler for ocean context (r2o mapping)
+  logical, public :: mbrof_data = .false. ! made true if no rtm mesh, which means data rof ? 
   integer, public :: mbintxar ! iMOAB id for intx mesh between atm and river
   integer, public :: mbintxlr ! iMOAB id for intx mesh between land and river
   integer, public :: mbintxrl ! iMOAB id for intx mesh between river and land
-  logical, public :: mb_land_mesh = .false.  ! whether the land uses full FV mesh or not ; made true if domain mesh is read on comp land
-
+  
   integer, public :: num_moab_exports   ! iMOAB id for atm phys grid, on atm pes
+  logical, public :: mb_rof_aream_computed = .false.  ! whether the aream for rof has been set or not 
 
   !=======================================================================
 contains
@@ -1599,6 +1600,7 @@ contains
      values  = mct_values - values
 
      difference = dot_product(values, values)
+     differenceg = 0. ! initialize to 0 the total sum
      call shr_mpi_sum(difference,differenceg,mpicom,subname)
      difference = sqrt(differenceg)
      call shr_mpi_commrank( mpicom, rank2 )
