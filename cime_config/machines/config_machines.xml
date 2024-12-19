@@ -3818,7 +3818,7 @@
   <machine MACH="derecho">
     <DESC>NCAR AMD EPYC system</DESC>
     <OS>CNL</OS>
-    <COMPILERS>intel,gnu,nvhpc,intel-oneapi,intel-classic</COMPILERS>
+    <COMPILERS>intel,gnu,nvhpc,intel-oneapi,intel-classic,gnugpu</COMPILERS>
     <MPILIBS>mpich</MPILIBS>
     <CIME_OUTPUT_ROOT>$ENV{SCRATCH}</CIME_OUTPUT_ROOT>
     <DIN_LOC_ROOT>/glade/derecho/scratch/$ENV{USER}/inputdata</DIN_LOC_ROOT>
