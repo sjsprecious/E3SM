@@ -1,9 +1,9 @@
 #include "share/io/scorpio_output.hpp"
 #include "share/io/scorpio_input.hpp"
-#include "share/util/scream_array_utils.hpp"
+#include "share/util/eamxx_array_utils.hpp"
 #include "share/grid/remap/coarsening_remapper.hpp"
 #include "share/grid/remap/vertical_remapper.hpp"
-#include "share/util/scream_timing.hpp"
+#include "share/util/eamxx_timing.hpp"
 #include "share/field/field_utils.hpp"
 
 #include "diagnostics/register_diagnostics.hpp"
@@ -270,10 +270,6 @@ AtmosphereOutput (const ekat::Comm& comm, const ekat::ParameterList& params,
 
     // Store a handle to 'after-vremap' FM
     set_field_manager(io_fm,"after_vertical_remap");
-
-    // This should never fail, but just in case
-    EKAT_REQUIRE_MSG (m_vert_remapper->get_num_fields()==m_vert_remapper->get_num_bound_fields(),
-        "Error! Something went wrong while building the scorpio input remapper.\n");
   }
 
   // Online remapper and horizontal remapper follow a similar pattern so we check in the same conditional.
@@ -323,10 +319,6 @@ AtmosphereOutput (const ekat::Comm& comm, const ekat::ParameterList& params,
       m_horiz_remapper->register_field(src,tgt);
     }
     m_horiz_remapper->registration_ends();
-
-    // This should never fail, but just in case
-    EKAT_REQUIRE_MSG (m_horiz_remapper->get_num_fields()==m_horiz_remapper->get_num_bound_fields(),
-        "Error! Something went wrong while building the scorpio input remapper.\n");
 
     // Reset the IO field manager
     set_field_manager(io_fm,"io");
@@ -407,7 +399,7 @@ run (const std::string& filename,
 
   auto apply_remap = [&](const std::shared_ptr<AbstractRemapper> remapper)
   {
-    remapper->remap(true);
+    remapper->remap_fwd();
 
     for (int i=0; i<remapper->get_num_fields(); ++i) {
       // Need to update the time stamp of the fields on the IO grid,
@@ -491,7 +483,7 @@ run (const std::string& filename,
     const bool is_aliasing_field_view =
         m_avg_type==OutputAvgType::Instant &&
         field.get_header().get_alloc_properties().get_padding()==0 &&
-        field.get_header().get_parent().expired() &&
+        field.get_header().get_parent()==nullptr &&
         not is_diagnostic;
 
     // Manually update the 'running-tally' views with data from the field,
@@ -701,7 +693,7 @@ res_dep_memory_footprint () const {
     bool can_alias_field_view =
         m_avg_type==OutputAvgType::Instant && not is_diagnostic &&
         io_field_mgr->get_field(fn).get_header().get_alloc_properties().get_padding()==0 &&
-        io_field_mgr->get_field(fn).get_header().get_parent().expired();
+        io_field_mgr->get_field(fn).get_header().get_parent()==nullptr;
 
     if (not can_alias_field_view) {
       rdmf += m_dev_views_1d.size()*sizeof(Real);
@@ -828,7 +820,7 @@ void AtmosphereOutput::register_views()
     bool can_alias_field_view =
         m_avg_type==OutputAvgType::Instant &&
         field.get_header().get_alloc_properties().get_padding()==0 &&
-        field.get_header().get_parent().expired() &&
+        field.get_header().get_parent()==nullptr &&
         not is_diagnostic;
 
     const auto layout = m_layouts.at(field.name());
@@ -1110,7 +1102,7 @@ AtmosphereOutput::get_var_dof_offsets(const FieldLayout& layout)
 
   // Precompute this *before* the early return, since it involves collectives.
   // If one rank owns zero cols, and returns prematurely, the others will be left waiting.
-  AbstractGrid::gid_type min_gid;
+  AbstractGrid::gid_type min_gid = -1;
   if (layout.has_tag(COL) or layout.has_tag(EL)) {
     min_gid = m_io_grid->get_global_min_dof_gid();
   }
@@ -1369,7 +1361,6 @@ AtmosphereOutput::create_diagnostic (const std::string& diag_field_name)
   for (const auto& freq : diag->get_required_field_requests()) {
     const auto& fname = freq.fid.name();
     if (!sim_field_mgr->has_field(fname)) {
-      std::cout << diag_field_name << " depends on the diag " << fname << "\n";
       // This diag depends on another diag. Create and init the dependency
       if (m_diagnostics.count(fname)==0) {
         m_diagnostics[fname] = create_diagnostic(fname);
