@@ -92,6 +92,18 @@ void Functions<S,D>
   const uview_1d<Spack>& vap_liq_exchange,
   const uview_1d<Spack>& vap_ice_exchange,
   const uview_1d<Spack>& liq_ice_exchange,
+  const uview_1d<Spack>& qr2qv_evap,
+  const uview_1d<Spack>& qi2qv_sublim,
+  const uview_1d<Spack>& qc2qr_accret,
+  const uview_1d<Spack>& qc2qr_autoconv,
+  const uview_1d<Spack>& qv2qi_vapdep,
+  const uview_1d<Spack>& qc2qi_berg,
+  const uview_1d<Spack>& qc2qr_ice_shed,
+  const uview_1d<Spack>& qc2qi_collect,
+  const uview_1d<Spack>& qr2qi_collect,
+  const uview_1d<Spack>& qc2qi_hetero_freeze,
+  const uview_1d<Spack>& qr2qi_immers_freeze,
+  const uview_1d<Spack>& qi2qr_melt,
   const uview_1d<Spack>& pratot,
   const uview_1d<Spack>& prctot,
   bool& hydrometeorsPresent, const Int& nk,
@@ -109,6 +121,8 @@ void Functions<S,D>
 
   const bool do_ice_production   = runtime_options.do_ice_production;
   const bool use_hetfrz_classnuc = runtime_options.use_hetfrz_classnuc;
+  const bool use_separate_ice_liq_frac = runtime_options.use_separate_ice_liq_frac;
+  const bool extra_p3_diags = runtime_options.extra_p3_diags;
 
   team.team_barrier();
   hydrometeorsPresent = false;
@@ -418,7 +432,7 @@ void Functions<S,D>
       qr2qi_collect_tend, qc2qr_ice_shed_tend, qi2qr_melt_tend, qc2qi_collect_tend, qr2qi_immers_freeze_tend, ni2nr_melt_tend, nc_collect_tend,
       ncshdc, nc2ni_immers_freeze_tend, nr_collect_tend, ni_selfcollect_tend,
       qv2qi_vapdep_tend, nr2ni_immers_freeze_tend, ni_sublim_tend, qv2qi_nucleat_tend, ni_nucleat_tend, qc2qi_berg_tend, 
-      ncheti_cnt, qcheti_cnt, nicnt, qicnt, ninuc_cnt, qinuc_cnt, not_skip_all);
+      ncheti_cnt, qcheti_cnt, nicnt, qicnt, ninuc_cnt, qinuc_cnt, not_skip_all, runtime_options);
 
     //
     // conservation of water
@@ -429,10 +443,18 @@ void Functions<S,D>
     // check qv because it is typically much greater than zero so seldom goes negative (and if it does
     // catastrophic failure is appropriate)]
 
-    // cloud
-    cloud_water_conservation(
-      qc(k), dt,
-      qc2qr_autoconv_tend, qc2qr_accret_tend, qc2qi_collect_tend, qc2qi_hetero_freeze_tend, qc2qr_ice_shed_tend, qc2qi_berg_tend, qi2qv_sublim_tend, qv2qi_vapdep_tend, qcheti_cnt, qicnt, use_hetfrz_classnuc, not_skip_all);
+    if (use_separate_ice_liq_frac) {
+      // cloud
+      cloud_water_conservation(
+        qc(k), dt,
+        qc2qr_autoconv_tend, qc2qr_accret_tend, qc2qi_collect_tend, qc2qi_hetero_freeze_tend, qc2qr_ice_shed_tend, qc2qi_berg_tend, qi2qv_sublim_tend, qv2qi_vapdep_tend, qcheti_cnt, qicnt, use_hetfrz_classnuc, not_skip_all,
+        cld_frac_l(k), cld_frac_i(k), runtime_options);
+    } else {
+      // cloud
+      cloud_water_conservation(
+        qc(k), dt,
+        qc2qr_autoconv_tend, qc2qr_accret_tend, qc2qi_collect_tend, qc2qi_hetero_freeze_tend, qc2qr_ice_shed_tend, qc2qi_berg_tend, qi2qv_sublim_tend, qv2qi_vapdep_tend, qcheti_cnt, qicnt, use_hetfrz_classnuc, not_skip_all);
+    }
 
     // rain
     rain_water_conservation(
@@ -492,6 +514,22 @@ void Functions<S,D>
     vap_ice_exchange(k).set(not_skip_all, qv2qi_vapdep_tend - qi2qv_sublim_tend + qv2qi_nucleat_tend);
     vap_liq_exchange(k).set(not_skip_all, -qr2qv_evap_tend);
     liq_ice_exchange(k).set(not_skip_all, qc2qi_hetero_freeze_tend + qr2qi_immers_freeze_tend - qi2qr_melt_tend + qc2qi_berg_tend + qc2qi_collect_tend + qr2qi_collect_tend);
+
+    // set tendencies if extra_p3_diags is true
+    if (extra_p3_diags) {
+      qr2qv_evap(k).set(not_skip_all, qr2qv_evap_tend);
+      qi2qv_sublim(k).set(not_skip_all, qi2qv_sublim_tend);
+      qc2qr_accret(k).set(not_skip_all, qc2qr_accret_tend);
+      qc2qr_autoconv(k).set(not_skip_all, qc2qr_autoconv_tend);
+      qv2qi_vapdep(k).set(not_skip_all, qv2qi_vapdep_tend);
+      qc2qi_berg(k).set(not_skip_all, qc2qi_berg_tend);
+      qc2qr_ice_shed(k).set(not_skip_all, qc2qr_ice_shed_tend);
+      qc2qi_collect(k).set(not_skip_all, qc2qi_collect_tend);
+      qr2qi_collect(k).set(not_skip_all, qr2qi_collect_tend);
+      qc2qi_hetero_freeze(k).set(not_skip_all, qc2qi_hetero_freeze_tend);
+      qr2qi_immers_freeze(k).set(not_skip_all, qr2qi_immers_freeze_tend);
+      qi2qr_melt(k).set(not_skip_all, qi2qr_melt_tend);
+    }
 
     // clipping for small hydrometeor values
     const auto qc_small    = qc(k) < qsmall    && not_skip_all;
