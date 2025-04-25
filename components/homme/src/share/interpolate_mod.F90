@@ -137,6 +137,9 @@ module interpolate_mod
   integer :: auto_grid = 0        ! 0 = interpolation grid set by namelist
                                   ! 1 = grid set via mesh resolution
 
+#ifdef MODEL_CESM
+  public :: interp_p, itype
+#endif
 
 contains
 

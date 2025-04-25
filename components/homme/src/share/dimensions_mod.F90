@@ -3,7 +3,7 @@
 #endif
 
 module dimensions_mod
-#if defined(CAM) && !defined(MODEL_CESM)
+#if defined(CAM) && !defined(FVM_TRACERS)
   use constituents, only : qsize_d => pcnst ! _EXTERNAL
 #endif
   implicit none
@@ -18,6 +18,9 @@ module dimensions_mod
 #endif
 #endif
 
+#if defined(CAM) && defined(FVM_TRACERS) 
+  integer, parameter         :: qsize_d =10 ! CAM-SE tracers (currently CAM-SE supports 10 condensate loading tracers)
+#endif
   integer, parameter, public :: np = NP
 
   integer         :: qsize = 0
