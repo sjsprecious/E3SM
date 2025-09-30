@@ -17,6 +17,11 @@ CreateUnitTest(io_utils "io_utils.cpp"
   PROPERTIES RESOURCE_LOCK rpointer_file
 )
 
+## Test field aliasing functionality
+CreateUnitTest(io_alias "io_alias.cpp"
+  LIBS scream_io diagnostics LABELS io
+)
+
 # Test creation of diagnostic from diag_field_name
 CreateUnitTest(create_diag "create_diag.cpp"
   LIBS diagnostics scream_io
@@ -85,6 +90,12 @@ endforeach()
 ## Test remap output
 CreateUnitTest(io_remap_test "io_remap_test.cpp"
   LIBS scream_io diagnostics LABELS io remap
+  MPI_RANKS 1 ${SCREAM_TEST_MAX_RANKS}
+)
+
+## Test remap output when map file is sub-sampling (ARM-style)
+CreateUnitTest(io_horiz_sampling "io_horiz_sampling.cpp"
+  LIBS scream_io LABELS io remap
   MPI_RANKS 1 ${SCREAM_TEST_MAX_RANKS}
 )
 

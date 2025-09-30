@@ -4,10 +4,10 @@
 #include "share/field/field.hpp"
 #include "share/grid/abstract_grid.hpp"
 
-#include "ekat/util/ekat_factory.hpp"
-#include "ekat/util/ekat_string_utils.hpp"
-#include "ekat/std_meta/ekat_std_utils.hpp"
-#include "ekat/ekat_parameter_list.hpp"
+#include <ekat_factory.hpp>
+#include <ekat_string_utils.hpp>
+#include <ekat_std_utils.hpp>
+#include <ekat_parameter_list.hpp>
 
 namespace scream
 {
@@ -33,19 +33,15 @@ public:
 
   // ----- Registration/setup methods ---- //
 
-  // Call this before you begin registering fields with this remapper.
-  void registration_begins ();
-
   // This method registers a source field to be remapped to a target field.
   void register_field (const Field& src, const Field& tgt);
 
   // Like the above, but create tgt/src internally
-  virtual void register_field_from_src (const Field& src);
-  virtual void register_field_from_tgt (const Field& tgt);
+  virtual Field register_field_from_src (const Field& src);
+  virtual Field register_field_from_tgt (const Field& tgt);
 
   // Call this to indicate that field registration is complete.
   void registration_ends ();
-
 
   //  ------- Getter methods ------- //
   RepoState get_state () const { return m_state; }

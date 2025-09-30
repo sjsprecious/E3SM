@@ -7,23 +7,7 @@ namespace scream {
 
 // Check that two fields store the same entries.
 // NOTE: if the field is padded, padding entries are NOT checked.
-inline bool views_are_equal(const Field& f1, const Field& f2, const ekat::Comm* comm = nullptr) {
-  EKAT_REQUIRE_MSG (f1.data_type()==f2.data_type(),
-      "Error! Views have different data types.\n");
-
-  bool ret = false;
-  switch (f1.data_type()) {
-    case DataType::IntType:
-      ret = impl::views_are_equal<const int>(f1,f2,comm); break;
-    case DataType::FloatType:
-      ret = impl::views_are_equal<const float>(f1,f2,comm); break;
-    case DataType::DoubleType:
-      ret = impl::views_are_equal<const double>(f1,f2,comm); break;
-    default:
-      EKAT_ERROR_MSG ("Error! Unrecognized field data type.\n");
-  }
-  return ret;
-}
+bool views_are_equal(const Field& f1, const Field& f2, const ekat::Comm* comm = nullptr);
 
 template<typename Engine, typename PDF>
 void randomize (const Field& f, Engine& engine, PDF&& pdf)
@@ -119,9 +103,10 @@ void perturb (Field& f,
 // - f_out, f_in, and weight must be provided and allocated
 // - The first dimension is for the columns (COL)
 // - There can be only up to 3 dimensions of f_in
-template <typename ST>
+template <typename ST, bool AVG = 1>
 void horiz_contraction(const Field &f_out, const Field &f_in,
-                       const Field &weight, const ekat::Comm *comm = nullptr) {
+                       const Field &weight, const ekat::Comm *comm = nullptr,
+                       const Field &f_tmp = Field()) {
   using namespace ShortFieldTagsNames;
 
   const auto &l_out = f_out.get_header().get_identifier().get_layout();
@@ -178,7 +163,7 @@ void horiz_contraction(const Field &f_out, const Field &f_in,
       "Error! Weight field must have the same data type as input fields.");
 
   // All good, call the implementation
-  impl::horiz_contraction<ST>(f_out, f_in, weight, comm);
+  impl::horiz_contraction<ST, AVG>(f_out, f_in, weight, comm, f_tmp);
 }
 
 // Utility to compute the contraction of a field along its level dimension.
@@ -190,9 +175,9 @@ void horiz_contraction(const Field &f_out, const Field &f_in,
 // - Weight is assumed to be (in order of checking/impl):
 //   - rank-1, with only LEV/ILEV dimension
 //   - rank-2, with only COL and LEV/ILEV dimensions
-template <typename ST>
-void vert_contraction(const Field &f_out, const Field &f_in,
-                      const Field &weight, const ekat::Comm *comm = nullptr) {
+// NOTE: we assume the LEV/ILEV dimension is NOT partitioned.
+template <typename ST, int AVG = 0>
+void vert_contraction(const Field &f_out, const Field &f_in, const Field &weight) {
   using namespace ShortFieldTagsNames;
 
   const auto &l_out = f_out.get_header().get_identifier().get_layout();
@@ -266,7 +251,7 @@ void vert_contraction(const Field &f_out, const Field &f_in,
       "Error! Weight field must have the same data type as input field.");
 
   // All good, call the implementation
-  impl::vert_contraction<ST>(f_out, f_in, weight, comm);
+  impl::vert_contraction<ST, AVG>(f_out, f_in, weight);
 }
 
 template<typename ST>
@@ -334,36 +319,10 @@ ST field_min(const Field& f, const ekat::Comm* comm = nullptr)
 // If the field layout contains all the location tags, we will slice the field along
 // those tags, and print it. E.g., f might be a <COL,LEV> field, and the tags/indices
 // refer to a single column, in which case we'll print a whole column worth of data.
-inline void
-print_field_hyperslab (const Field& f,
-                       const std::vector<FieldTag>& tags = {},
-                       const std::vector<int>& indices = {},
-                       std::ostream& out = std::cout)
-{
-  const auto dt = f.data_type();
-  const auto rank = f.rank();
-
-  EKAT_REQUIRE_MSG (rank>=static_cast<int>(tags.size()),
-      "Error! Requested location incompatible with field rank.\n"
-      "  - field name: " + f.name() + "\n"
-      "  - field rank: " + std::to_string(rank) + "\n"
-      "  - requested indices: (" + ekat::join(indices,",") + "\n");
-
-  switch (dt) {
-    case DataType::IntType:
-      impl::print_field_hyperslab<int>(f,tags,indices,out,rank,0);
-      break;
-    case DataType::FloatType:
-      impl::print_field_hyperslab<float>(f,tags,indices,out,rank,0);
-      break;
-    case DataType::DoubleType:
-      impl::print_field_hyperslab<double>(f,tags,indices,out,rank,0);
-      break;
-    default:
-      EKAT_ERROR_MSG ("[print_field_hyperslab] Error! Invalid/unsupported data type.\n"
-          " - field name: " + f.name() + "\n");
-  }
-}
+void print_field_hyperslab (const Field& f,
+                            const std::vector<FieldTag>& tags = {},
+                            const std::vector<int>& indices = {},
+                            std::ostream& out = std::cout);
 
 template<Comparison CMP, typename ST>
 void compute_mask (const Field& x, const ST value, Field& mask)
@@ -409,6 +368,9 @@ void compute_mask (const Field& x, const ST value, Field& mask)
       EKAT_ERROR_MSG ("Error! Unexpected/unsupported data type.\n");
   }
 }
+
+void transpose (const Field& src, Field& tgt);
+Field transpose (const Field& src, std::string src_T_name = "");
 
 } // namespace scream
 

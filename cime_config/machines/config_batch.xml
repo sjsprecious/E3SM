@@ -478,6 +478,8 @@
     <queues>
       <queue walltimemax="00:45:00" nodemax="150" default="true">regular</queue>
       <queue walltimemax="00:45:00" nodemax="150" strict="true">preempt</queue>
+      <queue walltimemax="00:30:00" nodemax="150" strict="true">shared</queue>
+      <queue walltimemax="00:30:00" nodemax="150" strict="true">overrun</queue>
       <queue walltimemax="00:15:00" nodemax="8" strict="true">debug</queue>
     </queues>
   </batch_system>
@@ -490,6 +492,8 @@
       <!-- Note: walltime is not the max walltime, but the default - see NERSC docs for Q limits, https://docs.nersc.gov/jobs/policy/ -->
       <queue walltimemax="00:30:00" nodemax="256" default="true">regular</queue>
       <queue walltimemax="00:30:00" nodemax="256" strict="true">preempt</queue>
+      <queue walltimemax="00:30:00" nodemax="256" strict="true">shared</queue>
+      <queue walltimemax="00:30:00" nodemax="256" strict="true">overrun</queue>
       <queue walltimemax="00:30:00" nodemax="8" strict="true">debug</queue>
     </queues>
   </batch_system>
@@ -519,6 +523,8 @@
     <queues>
       <queue walltimemax="00:45:00" nodemax="150" default="true">regular</queue>
       <queue walltimemax="00:45:00" nodemax="150" strict="true">preempt</queue>
+      <queue walltimemax="00:30:00" nodemax="150" strict="true">shared</queue>
+      <queue walltimemax="00:30:00" nodemax="150" strict="true">overrun</queue>
       <queue walltimemax="00:15:00" nodemax="8" strict="true">debug</queue>
     </queues>
   </batch_system>
@@ -529,6 +535,9 @@
     </directives>
     <queues>
       <queue walltimemax="00:30:00" nodemax="256" default="true">regular</queue>
+      <queue walltimemax="00:30:00" nodemax="256" strict="true">preempt</queue>
+      <queue walltimemax="00:30:00" nodemax="256" strict="true">shared</queue>
+      <queue walltimemax="00:30:00" nodemax="256" strict="true">overrun</queue>
       <queue walltimemax="00:30:00" nodemax="8" strict="true">debug</queue>
     </queues>
   </batch_system>
@@ -553,6 +562,7 @@
 
     <batch_system MACH="aurora" type="pbspro">
       <batch_submit>/lus/flare/projects/E3SM_Dec/tools/qsub/throttle</batch_submit>
+      <jobid_pattern>(\d+)\.aurora-pbs</jobid_pattern>
       <directives>
         <directive> -l filesystems=home:flare </directive>
       </directives>
@@ -566,6 +576,7 @@
     
     <batch_system MACH="polaris" type="pbspro">
       <batch_submit>/grand/E3SMinput/soft/qsub/throttle</batch_submit>
+      <jobid_pattern>(\d+)\.polaris-pbs</jobid_pattern>
       <directives>
         <directive> -l filesystems=home:grand:eagle </directive>
       </directives>
@@ -744,6 +755,20 @@
          </queues>
    </batch_system>
 
+
+   <batch_system MACH="cades-baseline" type="slurm" >
+         <submit_args>
+           <arg flag="-A CLI185"/>
+           <arg flag="--mem=0G"/>
+           <arg flag="--ntasks-per-node 128"/>
+         </submit_args>
+         <queues>
+            <queue walltimemax="24:00" default="true">batch_ccsi</queue>
+            <!-- note: if above limited by computing resources, can use the following -->
+            <!-- <queue walltimemax="24:00" default="true">batch</queue> -->
+         </queues>
+   </batch_system>
+
    <batch_system MACH="itasca" type="pbs">
      <queues>
        <queue walltimemax="24:00" default="true">batch</queue>
@@ -846,16 +871,6 @@
     <queues>
       <queue walltimemax="01:00:00" default="true">lr6</queue>
     </queues>
-   </batch_system>
-
-   <batch_system MACH="gcp12" type="slurm" >
-     <queues>
-       <queue walltimemax="01:30:00" default="true">c2dh112</queue>   <!-- c2d-highcpu-112     1.88984 -->
-       <queue walltimemax="01:30:00" default="true">c2d32</queue>     <!-- c2d-standard-32     0.30794 -->
-       <queue walltimemax="01:30:00" default="true">c2d56</queue>     <!-- c2d-standard-56     0.53889 -->
-       <queue walltimemax="01:30:00" default="true">c2o60</queue>     <!-- "old" c2-compute-60 0.28428 -->
-       <queue walltimemax="01:30:00" default="true">compute</queue>   <!-- c2d-standard-112    1.07776 -->
-     </queues>
    </batch_system>
 
   <!-- modex is PBS -->

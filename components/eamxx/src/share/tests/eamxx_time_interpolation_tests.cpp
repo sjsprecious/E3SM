@@ -4,15 +4,15 @@
 
 #include "share/field/field_utils.hpp"
 #include "share/field/field.hpp"
-#include "share/field/field_manager.hpp"
+#include "share/manager/field_manager.hpp"
 
 #include "share/util/eamxx_time_interpolation.hpp"
-#include "share/util/eamxx_setup_random_test.hpp"
+#include "eamxx_setup_random_test.hpp"
 #include "share/util/eamxx_time_stamp.hpp"
 
 #include "share/io/eamxx_output_manager.hpp"
 
-#include "ekat/ekat_parameter_list.hpp"
+#include <ekat_parameter_list.hpp>
 /*-----------------------------------------------------------------------------------------------
  * Test TimeInterpolation class
  *-----------------------------------------------------------------------------------------------*/
@@ -344,9 +344,7 @@ std::shared_ptr<FieldManager> get_fm (const std::shared_ptr<const AbstractGrid>&
     FL({COL,CMP,ILEV}, {nlcols,2,nlevs+1})
   };
 
-  auto fm = std::make_shared<FieldManager>(grid);
-  fm->registration_begins();
-  fm->registration_ends();
+  auto fm = std::make_shared<FieldManager>(grid,RepoState::Closed);
 
   const auto units = ekat::units::Units::nondimensional();
   for (const auto& fl : layouts) {

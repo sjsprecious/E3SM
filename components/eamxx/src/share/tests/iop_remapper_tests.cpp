@@ -3,7 +3,7 @@
 #include "share/grid/remap/iop_remapper.hpp"
 #include "share/grid/point_grid.hpp"
 #include "share/grid/se_grid.hpp"
-#include "share/util/eamxx_setup_random_test.hpp"
+#include "eamxx_setup_random_test.hpp"
 #include "share/field/field_utils.hpp"
 
 namespace scream {
@@ -140,8 +140,6 @@ TEST_CASE("iop_remap")
     LayoutType::Tensor3D,
     LayoutType::Tensor3D
   };
-
-  remap->registration_begins();
 
   bool midpoints = false; // midpoints is unused for 2d layouts
   for (auto l : layouts) {

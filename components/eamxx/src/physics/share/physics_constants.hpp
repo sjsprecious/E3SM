@@ -1,12 +1,12 @@
 #ifndef PHYSICS_CONSTANTS_HPP
 #define PHYSICS_CONSTANTS_HPP
 
-#include "share/eamxx_types.hpp"
+#include "share/core/eamxx_types.hpp"
 
-#include "ekat/util/ekat_string_utils.hpp"
-#include "ekat/ekat_scalar_traits.hpp"
-#include "ekat/logging/ekat_logger.hpp"
+#include <ekat_string_utils.hpp>
+#include <ekat_math_utils.hpp>
 
+#include <Kokkos_NumericTraits.hpp>
 #include <vector>
 
 namespace scream {
@@ -94,7 +94,7 @@ struct Constants
   static constexpr Scalar nmltratio     = 1.0; // ratio of rain number produced to ice number loss from melting
   static constexpr Scalar basetemp      = 300.0;
   static constexpr Scalar r_earth       = 6.376e6; // Radius of the earth in m
-  static constexpr Scalar stebol        = 5.67e-8; // Stefan-Boltzmann's constant (W/m^2/K^4)
+  static constexpr Scalar stebol        = 5.670374419e-8; // Stefan-Boltzmann's constant (W/m^2/K^4)
   static constexpr Scalar omega         = 7.292e-5; // Earth's rotation (rad/sec)
 
   // Table dimension constants
@@ -149,7 +149,7 @@ Scalar Constants<Scalar>::get_gas_mol_weight(ci_string gas_name) {
   } else if (gas_name == "cfc12" ) {
     return 120.;
   }
-  return ekat::ScalarTraits<Scalar>::invalid();
+  return ekat::invalid<Scalar>();
 }
 
 template <typename Scalar>

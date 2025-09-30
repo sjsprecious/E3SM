@@ -22,6 +22,9 @@ class AODVis : public AtmosphereDiagnostic {
   void set_grids(
       const std::shared_ptr<const GridsManager> grids_manager) override;
 
+  void initialize_impl(
+      const RunType /*run_type*/) override;
+
  protected:
 #ifdef KOKKOS_ENABLE_CUDA
  public:

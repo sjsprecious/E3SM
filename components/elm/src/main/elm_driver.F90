@@ -1358,8 +1358,8 @@ contains
        ! Determine albedos for next time step
        ! ============================================================================
 
-       if (doalb) then
-
+       if ( doalb ) then
+       
           ! Albedos for non-urban columns
           call t_startf('surfalb')
           call SurfaceAlbedo(bounds_clump,                      &
@@ -1462,6 +1462,8 @@ contains
        call veg_es%UpdateAccVars(bounds_proc)
 
        call canopystate_vars%UpdateAccVars(bounds_proc)
+
+       call energyflux_vars%UpdateAccVars(bounds_proc)
 
        if (crop_prog) then
           call crop_vars%UpdateAccVars(bounds_proc, temperature_vars)

@@ -10329,6 +10329,9 @@ contains
          config_DMSP_to_DMS_conversion_time, &
          config_DMS_oxidation_time, &
          config_fallen_snow_radius, &
+         config_snow_growth_wet_factor, &
+         config_minimum_snow_growth_factor, &
+         config_snow_liq_saturation, &
          config_new_snow_density, &
          config_max_snow_density, &
          config_minimum_wind_compaction, &
@@ -10537,6 +10540,9 @@ contains
     call MPAS_pool_get_config(domain % configs, "config_DMS_oxidation_time", config_DMS_oxidation_time)
     call MPAS_pool_get_config(domain % configs, "config_snow_redistribution_scheme", config_snow_redistribution_scheme)
     call MPAS_pool_get_config(domain % configs, "config_fallen_snow_radius", config_fallen_snow_radius)
+    call MPAS_pool_get_config(domain % configs, "config_snow_growth_wet_factor", config_snow_growth_wet_factor)
+    call MPAS_pool_get_config(domain % configs, "config_minimum_snow_growth_factor", config_minimum_snow_growth_factor)
+    call MPAS_pool_get_config(domain % configs, "config_snow_liq_saturation", config_snow_liq_saturation)
     call MPAS_pool_get_config(domain % configs, "config_use_snow_liquid_ponds", config_use_snow_liquid_ponds)
     call MPAS_pool_get_config(domain % configs, "config_new_snow_density", config_new_snow_density)
     call MPAS_pool_get_config(domain % configs, "config_max_snow_density", config_max_snow_density)
@@ -10869,6 +10875,9 @@ contains
          snwredist_in            = config_snow_redistribution_scheme, &
          use_smliq_pnd_in        = config_use_snow_liquid_ponds, &
          rsnw_fall_in            = config_fallen_snow_radius, &
+         snw_growth_wet_in       = config_snow_growth_wet_factor, &
+         drsnw_min_in            = config_minimum_snow_growth_factor, &
+         snwliq_max_in           = config_snow_liq_saturation, &
          rsnw_tmax_in            = config_max_dry_snow_radius, &
          rhosnew_in              = config_new_snow_density, &
          rhosmax_in              = config_max_snow_density, &
@@ -11774,6 +11783,18 @@ contains
     ! rsnw_fall:
     ! fallen snow grain radius (um)
     ! rsnw_fall = config_fallen_snow_radius
+
+    ! snw_growth_wet:
+    ! wet metamorphism parameter (um3 s-1)
+    ! snw_growth_wet = config_snow_growth_wet_factor
+
+    ! drsnw_min:
+    ! minimum snow grain growth factor (1)
+    ! drsnw_min = config_minimum_snow_growth_factor
+
+    ! snwliq_max:
+    ! irreducible saturation fraction (1)
+    ! snwliq_max = config_snow_liq_saturation
 
     ! rsnw_tmax:
     ! maximum dry metamorphism snow grain radius (um)
@@ -14996,101 +15017,106 @@ contains
              call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregatePool)
 
              if (config_use_vertical_tracers) then
-                call MPAS_pool_get_array(biogeochemistryPool, "primaryProduction", primaryProduction)
-                call MPAS_pool_get_array(biogeochemistryPool, "totalChlorophyll", totalChlorophyll)
-                call MPAS_pool_get_array(biogeochemistryPool, "netSpecificAlgalGrowthRate", netSpecificAlgalGrowthRate)
                 call MPAS_pool_get_array(diagnostics_biogeochemistryPool, "bgridSalinityIceCell", bgridSalinityIceCell)
                 call MPAS_pool_get_array(diagnostics_biogeochemistryPool, "bgridPorosityIceCell", bgridPorosityIceCell)
                 call MPAS_pool_get_array(diagnostics_biogeochemistryPool, "bgridTemperatureIceCell", bgridTemperatureIceCell)
-                primaryProduction             = 0.0_RKIND
-                totalChlorophyll              = 0.0_RKIND
-                netSpecificAlgalGrowthRate    = 0.0_RKIND
+                call MPAS_pool_get_array(biogeochemistryPool, "netBrineHeight", netBrineHeight)
+                call MPAS_pool_get_array(biogeochemistryPool, "oceanBioFluxes", oceanBioFluxes)
+                call MPAS_pool_get_array(biogeochemistryPool, "atmosIceBioFluxes", atmosIceBioFluxes)
+                call MPAS_pool_get_array(biogeochemistryPool, "snowIceBioFluxes", snowIceBioFluxes)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBiologyIce", totalVerticalBiologyIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBiologySnow", totalVerticalBiologySnow)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalCarbonContentCell", totalCarbonContentCell)
+
                 bgridSalinityIceCell          = 0.0_RKIND
                 bgridPorosityIceCell          = 0.0_RKIND
                 bgridTemperatureIceCell       = 0.0_RKIND
-
+                netBrineHeight                = 0.0_RKIND
+                oceanBioFluxes                = 0.0_RKIND
+                atmosIceBioFluxes             = 0.0_RKIND
+                snowIceBioFluxes              = 0.0_RKIND
+                totalVerticalBiologyIce        = 0.0_RKIND
+                totalVerticalBiologySnow       = 0.0_RKIND
+                totalCarbonContentCell         = 0.0_RKIND
              end if
 
-             call MPAS_pool_get_array(biogeochemistryPool, "netBrineHeight", netBrineHeight)
-             call MPAS_pool_get_array(biogeochemistryPool, "oceanBioFluxes", oceanBioFluxes)
-             call MPAS_pool_get_array(biogeochemistryPool, "atmosIceBioFluxes", atmosIceBioFluxes)
-             call MPAS_pool_get_array(biogeochemistryPool, "snowIceBioFluxes", snowIceBioFluxes)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBiologyIce", totalVerticalBiologyIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBiologySnow", totalVerticalBiologySnow)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalCarbonContentCell", totalCarbonContentCell)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDiatomIce", totalVerticalDiatomIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalSmallPlanktonIce", totalVerticalSmallPlanktonIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalPhaeocystisIce", totalVerticalPhaeocystisIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalPolysaccharidsIce", totalVerticalPolysaccharidsIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalLipidsIce", totalVerticalLipidsIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDICIce", totalVerticalDICIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalProteinsIce", totalVerticalProteinsIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalNitrateIce", totalVerticalNitrateIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalSilicateIce", totalVerticalSilicateIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalAmmoniumIce", totalVerticalAmmoniumIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDMSIce", totalVerticalDMSIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDMSPpIce", totalVerticalDMSPpIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDMSPdIce", totalVerticalDMSPdIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalNonreactiveIce", totalVerticalNonreactiveIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalHumicsIce", totalVerticalHumicsIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalParticulateIronIce", totalVerticalParticulateIronIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDissolvedIronIce", totalVerticalDissolvedIronIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDissolvedIronSnow", totalVerticalDissolvedIronSnow)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDustIce", totalVerticalDustIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDustSnow", totalVerticalDustSnow)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC1Ice", totalVerticalBC1Ice)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC1Snow", totalVerticalBC1Snow)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC2Ice", totalVerticalBC2Ice)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC2Snow", totalVerticalBC2Snow)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBCIce", totalVerticalBCIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBCSnow", totalVerticalBCSnow)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalAlgaeCarbonIce", totalVerticalAlgaeCarbonIce)
-             call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDOCLabileIce", totalVerticalDOCLabileIce)
-             call MPAS_pool_get_array(tracers_aggregatePool, "verticalBCTotalIceCell", verticalBCTotalIceCell)
-             call MPAS_pool_get_array(tracers_aggregatePool, "verticalDustTotalIceCell", verticalDustTotalIceCell)
-             call MPAS_pool_get_array(tracers_aggregatePool, "verticalDustTotalSnowCell", verticalDustTotalSnowCell)
-             call MPAS_pool_get_array(tracers_aggregatePool, "verticalBCTotalSnowCell", verticalBCTotalSnowCell)
+             if (config_use_column_biogeochemistry) then
+                call MPAS_pool_get_array(biogeochemistryPool, "primaryProduction", primaryProduction)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalChlorophyll", totalChlorophyll)
+                call MPAS_pool_get_array(biogeochemistryPool, "netSpecificAlgalGrowthRate", netSpecificAlgalGrowthRate)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDiatomIce", totalVerticalDiatomIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalSmallPlanktonIce", totalVerticalSmallPlanktonIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalPhaeocystisIce", totalVerticalPhaeocystisIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalPolysaccharidsIce", totalVerticalPolysaccharidsIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalLipidsIce", totalVerticalLipidsIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDICIce", totalVerticalDICIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalProteinsIce", totalVerticalProteinsIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalNitrateIce", totalVerticalNitrateIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalSilicateIce", totalVerticalSilicateIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalAmmoniumIce", totalVerticalAmmoniumIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDMSIce", totalVerticalDMSIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDMSPpIce", totalVerticalDMSPpIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDMSPdIce", totalVerticalDMSPdIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalNonreactiveIce", totalVerticalNonreactiveIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalHumicsIce", totalVerticalHumicsIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalParticulateIronIce", totalVerticalParticulateIronIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDissolvedIronIce", totalVerticalDissolvedIronIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDissolvedIronSnow", totalVerticalDissolvedIronSnow)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalAlgaeCarbonIce", totalVerticalAlgaeCarbonIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDOCLabileIce", totalVerticalDOCLabileIce)
 
+                primaryProduction              = 0.0_RKIND
+                totalChlorophyll               = 0.0_RKIND
+                netSpecificAlgalGrowthRate     = 0.0_RKIND
+                totalVerticalDiatomIce         = 0.0_RKIND
+                totalVerticalSmallPlanktonIce  = 0.0_RKIND
+                totalVerticalPhaeocystisIce    = 0.0_RKIND
+                totalVerticalPolysaccharidsIce = 0.0_RKIND
+                totalVerticalLipidsIce         = 0.0_RKIND
+                totalVerticalDICIce            = 0.0_RKIND
+                totalVerticalProteinsIce       = 0.0_RKIND
+                totalVerticalNitrateIce        = 0.0_RKIND
+                totalVerticalSilicateIce       = 0.0_RKIND
+                totalVerticalAmmoniumIce       = 0.0_RKIND
+                totalVerticalDMSIce            = 0.0_RKIND
+                totalVerticalDMSPpIce          = 0.0_RKIND
+                totalVerticalDMSPdIce          = 0.0_RKIND
+                totalVerticalNonreactiveIce    = 0.0_RKIND
+                totalVerticalHumicsIce         = 0.0_RKIND
+                totalVerticalParticulateIronIce= 0.0_RKIND
+                totalVerticalDissolvedIronIce  = 0.0_RKIND
+                totalVerticalDissolvedIronSnow = 0.0_RKIND
+                totalVerticalAlgaeCarbonIce    = 0.0_RKIND
+                totalVerticalDOCLabileIce      = 0.0_RKIND
+             end if
 
-             netBrineHeight             = 0.0_RKIND
-             oceanBioFluxes             = 0.0_RKIND
-             atmosIceBioFluxes          = 0.0_RKIND
-             snowIceBioFluxes           = 0.0_RKIND
-             totalVerticalBiologyIce    = 0.0_RKIND
-             totalVerticalBiologySnow   = 0.0_RKIND
-             totalCarbonContentCell     = 0.0_RKIND
-             totalVerticalDiatomIce       = 0.0_RKIND
-             totalVerticalSmallPlanktonIce = 0.0_RKIND
-             totalVerticalPhaeocystisIce   = 0.0_RKIND
-             totalVerticalPolysaccharidsIce = 0.0_RKIND
-             totalVerticalLipidsIce        = 0.0_RKIND
-             totalVerticalDICIce           = 0.0_RKIND
-             totalVerticalProteinsIce      = 0.0_RKIND
-             totalVerticalNitrateIce       = 0.0_RKIND
-             totalVerticalSilicateIce      = 0.0_RKIND
-             totalVerticalAmmoniumIce      = 0.0_RKIND
-             totalVerticalDMSIce           = 0.0_RKIND
-             totalVerticalDMSPpIce         = 0.0_RKIND
-             totalVerticalDMSPdIce         = 0.0_RKIND
-             totalVerticalNonreactiveIce   = 0.0_RKIND
-             totalVerticalHumicsIce        = 0.0_RKIND
-             totalVerticalParticulateIronIce = 0.0_RKIND
-             totalVerticalDissolvedIronIce    = 0.0_RKIND
-             totalVerticalDissolvedIronSnow   = 0.0_RKIND
-             totalVerticalBC1Ice              = 0.0_RKIND
-             totalVerticalBC2Ice           = 0.0_RKIND
-             totalVerticalDustIce          = 0.0_RKIND
-             totalVerticalBC1Snow          = 0.0_RKIND
-             totalVerticalBC2Snow          = 0.0_RKIND
-             totalVerticalBCSnow           = 0.0_RKIND
-             totalVerticalBCIce            = 0.0_RKIND
-             totalVerticalDustSnow         = 0.0_RKIND
-             totalVerticalAlgaeCarbonIce   = 0.0_RKIND
-             totalVerticalDOCLabileIce     = 0.0_RKIND
-             verticalBCTotalIceCell        = 0.0_RKIND
-             verticalDustTotalIceCell      = 0.0_RKIND
-             verticalBCTotalSnowCell       = 0.0_RKIND
-             verticalDustTotalSnowCell     = 0.0_RKIND
+             if (config_use_zaerosols) then
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDustIce", totalVerticalDustIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalDustSnow", totalVerticalDustSnow)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC1Ice", totalVerticalBC1Ice)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC1Snow", totalVerticalBC1Snow)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC2Ice", totalVerticalBC2Ice)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBC2Snow", totalVerticalBC2Snow)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBCIce", totalVerticalBCIce)
+                call MPAS_pool_get_array(biogeochemistryPool, "totalVerticalBCSnow", totalVerticalBCSnow)
+                call MPAS_pool_get_array(tracers_aggregatePool, "verticalBCTotalIceCell", verticalBCTotalIceCell)
+                call MPAS_pool_get_array(tracers_aggregatePool, "verticalDustTotalIceCell", verticalDustTotalIceCell)
+                call MPAS_pool_get_array(tracers_aggregatePool, "verticalDustTotalSnowCell", verticalDustTotalSnowCell)
+                call MPAS_pool_get_array(tracers_aggregatePool, "verticalBCTotalSnowCell", verticalBCTotalSnowCell)
+
+                totalVerticalBC1Ice           = 0.0_RKIND
+                totalVerticalBC2Ice           = 0.0_RKIND
+                totalVerticalDustIce          = 0.0_RKIND
+                totalVerticalBC1Snow          = 0.0_RKIND
+                totalVerticalBC2Snow          = 0.0_RKIND
+                totalVerticalBCSnow           = 0.0_RKIND
+                totalVerticalBCIce            = 0.0_RKIND
+                totalVerticalDustSnow         = 0.0_RKIND
+                verticalBCTotalIceCell        = 0.0_RKIND
+                verticalDustTotalIceCell      = 0.0_RKIND
+                verticalBCTotalSnowCell       = 0.0_RKIND
+                verticalDustTotalSnowCell     = 0.0_RKIND
+             endif
 
           endif
 

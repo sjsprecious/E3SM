@@ -149,10 +149,8 @@ contains
     character(len=*),  parameter :: format = "('("//trim(sub)//") :',A)"
 
 #ifdef HAVE_MOAB
-    character*100 outfile, wopts, localmeshfile
+    character*100 outfile, wopts
     integer :: ierr, nsend,n
-    character(len=SHR_KIND_CL) :: atm_gnam          ! atm grid
-    character(len=SHR_KIND_CL) :: lnd_gnam          ! lnd grid
 #endif
     !-----------------------------------------------------------------------
 
@@ -406,9 +404,11 @@ contains
     !     write out the mesh file to disk, in parallel
     outfile = 'wholeLnd.h5m'//C_NULL_CHAR
     wopts   = 'PARALLEL=WRITE_PART'//C_NULL_CHAR
-    ierr = iMOAB_WriteMesh(mlnid, outfile, wopts)
-    if (ierr > 0 )  &
-      call endrun('Error: fail to write the land mesh file')
+    if (mlnid >= 0) then
+       ierr = iMOAB_WriteMesh(mlnid, outfile, wopts)
+       if (ierr > 0 )  &
+         call endrun('Error: fail to write the land mesh file')
+    endif
 #endif
 
   end subroutine lnd_init_mct
@@ -545,7 +545,6 @@ contains
     call lnd_import( bounds, x2l_l%rattr, atm2lnd_vars, glc2lnd_vars, lnd2atm_vars)
     
 #ifdef HAVE_MOAB
-    ! first call moab import 
 #ifdef MOABCOMP
     ! loop over all fields in seq_flds_x2l_fields
     call mct_list_init(temp_list ,seq_flds_x2l_fields)
@@ -556,13 +555,13 @@ contains
       call mct_list_get(mctOStr,index_list,temp_list)
       mct_field = mct_string_toChar(mctOStr)
       tagname= trim(mct_field)//C_NULL_CHAR
-      modelStr = 'lnd run'
+      modelStr = 'lnd run import'
       call seq_comm_compare_mb_mct(modelStr, mpicom_lnd_moab, x2l_l, mct_field,  mlnid, tagname, ent_type, difference)
     enddo
     call mct_list_clean(temp_list)
-
 #endif
 ! calling MOAB's import last means this is what the model will use.
+! also, call after comparisons are made, so we can see the eventual differences
     call lnd_import_moab( EClock, bounds, atm2lnd_vars, glc2lnd_vars)
 #endif
 
@@ -865,11 +864,9 @@ contains
     real(r8)   :: latv, lonv
     integer   dims, i, iv, ilat, ilon, igdx, ierr, tagindex
     integer tagtype, numco, ent_type, mbtype, block_ID
-    character*100 outfile, wopts, localmeshfile
+    character*100 outfile, wopts
     character(CXX) ::  tagname ! hold all fields
     character*32  appname
-
-    integer, allocatable :: moabconn(:) ! will have the connectivity in terms of local index in verts
 
     ! define a MOAB app for ELM
     appname="LNDMB"//C_NULL_CHAR
@@ -1076,6 +1073,7 @@ contains
        l2x_lm(i,index_l2x_Sl_tref)     =  lnd2atm_vars%t_ref2m_grc(g)
        l2x_lm(i,index_l2x_Sl_qref)     =  lnd2atm_vars%q_ref2m_grc(g)
        l2x_lm(i,index_l2x_Sl_u10)      =  lnd2atm_vars%u_ref10m_grc(g)
+       l2x_lm(i,index_l2x_Sl_u10withgusts)=lnd2atm_vars%u_ref10m_with_gusts_grc(g) ! see commit 5813d4103
        l2x_lm(i,index_l2x_Fall_taux)   = -lnd2atm_vars%taux_grc(g)
        l2x_lm(i,index_l2x_Fall_tauy)   = -lnd2atm_vars%tauy_grc(g)
        l2x_lm(i,index_l2x_Fall_lat)    = -lnd2atm_vars%eflx_lh_tot_grc(g)

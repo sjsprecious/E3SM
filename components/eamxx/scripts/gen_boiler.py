@@ -15,12 +15,13 @@ FILE_TEMPLATES = {
 f"""#include "catch2/catch.hpp"
 
 #include "share/eamxx_types.hpp"
-#include "ekat/ekat_pack.hpp"
-#include "ekat/kokkos/ekat_kokkos_utils.hpp"
 #include "physics/{phys}/{phys}_functions.hpp"
 #include "physics/{phys}/tests/infra/{phys}_test_data.hpp"
 
 #include "{phys}_unit_tests_common.hpp"
+
+#include <ekat_pack.hpp>
+#include <ekat_team_policy_utils.hpp>
 
 namespace scream {{
 namespace {phys} {{
@@ -760,6 +761,8 @@ def parse_f90_args(line):
     [('elem', 'type::element_t', 'inout', (':',))]
     >>> parse_f90_args('character*(max_path_len), intent(out), optional ::  iopfile_out')
     [('iopfile_out', 'type::string', 'out', None)]
+    >>> parse_f90_args('real(r8), intent(out) :: nm(ncol,pver), ni(ncol,0:pver)')
+    [('nm', 'real', 'out', ('ncol', 'pver')), ('ni', 'real', 'out', ('ncol', '0:pver'))]
 
     """
     expect(line.count("::") == 1, f"Expected line format 'type-info :: names' for: {line}")
@@ -786,18 +789,19 @@ def parse_f90_args(line):
             dims = tuple(item.replace(" ", "") for item in dims_raw.split(","))
 
     names = []
+    all_dims = []
     for name_dim in names_dims:
         if "(" in name_dim:
             name, dims_raw = name_dim.split("(")
             dims_raw = dims_raw.rstrip(")").strip()
             dims_check = tuple(item.replace(" ", "") for item in dims_raw.split(","))
-            expect(dims is None or dims_check == dims, f"Inconsistent dimensions in line: {line}")
-            dims = dims_check
+            all_dims.append(dims_check)
             names.append(name.strip())
         else:
+            all_dims.append(dims)
             names.append(name_dim.strip())
 
-    return [(name, argtype, intent, dims) for name in names]
+    return [(name, argtype, intent, dims) for name, dims in zip(names, all_dims)]
 
 ###############################################################################
 def parse_origin(contents, subs):
@@ -1900,7 +1904,7 @@ f"""struct {struct_name}{inheritance} {{
             vals_d(btemp_d_1[0]);
         <BLANKLINE>
           const Int nk_pack = ekat::npack<Spack>(nlev);
-          const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+          const auto policy = ekat::TeamPolicyFactory<ExeSpace>::get_default_team_policy(shcol, nk_pack);
           Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
             const Int i = team.league_rank();
         <BLANKLINE>
@@ -2108,7 +2112,7 @@ f"""struct {struct_name}{inheritance} {{
             # 4) Get nk_pack and policy, launch kernel
             #
             impl += "  const Int nk_pack = ekat::npack<Spack>(nlev);\n"
-            impl += "  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);\n"
+            impl += "  const auto policy = ekat::TeamPolicyFactory<ExeSpace>::get_default_team_policy(shcol, nk_pack);\n"
             impl += "  Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {\n"
             impl += "    const Int i = team.league_rank();\n\n"
 
@@ -2491,9 +2495,13 @@ f"""{decl}
     }"""
 
         _, _, _, _, scalars, real_data, int_data, bool_data = group_data(arg_data, filter_out_intent="in")
-        check_scalars, check_arrays = "", ""
+        check_scalars, check_arrays, scalar_comments = "", "", ""
         for scalar in scalars:
             check_scalars += f"        REQUIRE(d_baseline.{scalar[0]} == d_test.{scalar[0]});\n"
+
+        _, _, _, all_dims, input_scalars, _, _, _ = group_data(arg_data, filter_out_intent="out")
+        all_scalar_inputs = all_dims + [scalar_name for scalar_name, _ in input_scalars]
+        scalar_comments = "// " + ", ".join(all_scalar_inputs)
 
         if has_array:
             c2f_transpose_code = "" if not need_transpose else \
@@ -2528,6 +2536,8 @@ f"""{decl}
     // Set up inputs
     {data_struct} baseline_data[] = {{
       // TODO
+      {scalar_comments}
+      {data_struct}(),
     }};
 
     static constexpr Int num_runs = sizeof(baseline_data) / sizeof({data_struct});{gen_random}
@@ -2536,6 +2546,7 @@ f"""{decl}
     // inout data is in original state
     {data_struct} test_data[] = {{
       // TODO
+      {data_struct}(baseline_data[0]),
     }};
 
     // Read baseline data
@@ -2564,6 +2575,7 @@ f"""{decl}
       }}
     }}
   }} // run_bfb""".format(data_struct=data_struct,
+                          scalar_comments=scalar_comments,
                           sub=sub,
                           gen_random=gen_random,
                           c2f_transpose_code=c2f_transpose_code,
@@ -2880,3 +2892,7 @@ template struct Functions<Real,DefaultDevice>;
         print("ALL_SUCCESS" if all_success else "THERE WERE FAILURES")
 
         return all_success
+
+if __name__ == "__main__":
+    import doctest
+    doctest.run_docstring_examples(parse_f90_args, globals())

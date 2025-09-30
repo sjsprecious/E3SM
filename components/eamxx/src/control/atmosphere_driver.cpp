@@ -4,7 +4,6 @@
 
 #include "physics/share/physics_constants.hpp"
 
-#include "share/eamxx_config.hpp"
 #include "share/atm_process/atmosphere_process_group.hpp"
 #include "share/atm_process/atmosphere_process_dag.hpp"
 #include "share/field/field_utils.hpp"
@@ -12,20 +11,22 @@
 #include "share/util/eamxx_timing.hpp"
 #include "share/util/eamxx_utils.hpp"
 #include "share/io/eamxx_io_utils.hpp"
-#include "share/property_checks/mass_and_energy_column_conservation_check.hpp"
+#include "share/property_checks/mass_and_energy_conservation_check.hpp"
+#include "share/core/eamxx_config.hpp"
+#include "eamxx_version.h"
 
-#include "ekat/ekat_assert.hpp"
-#include "ekat/util/ekat_string_utils.hpp"
-#include "ekat/ekat_parameter_list.hpp"
-#include "ekat/ekat_parse_yaml_file.hpp"
-#include "ekat/std_meta/ekat_std_utils.hpp"
+#include <ekat_assert.hpp>
+#include <ekat_string_utils.hpp>
+#include <ekat_parameter_list.hpp>
+#include <ekat_yaml.hpp>
+#include <ekat_std_utils.hpp>
 
 // The global variable fvphyshack is used to help the initial pgN implementation
 // work around some current AD constraints. Search the code for "fvphyshack" to
 // find blocks that eventually should be removed in favor of a design that
 // accounts for pg2. Some blocks may turn out to be unnecessary, and I simply
 // didn't realize I could do without the workaround.
-#include "share/util/eamxx_fv_phys_rrtmgp_active_gases_workaround.hpp"
+#include "share/algorithm/eamxx_fv_phys_rrtmgp_active_gases_workaround.hpp"
 
 #ifndef SCREAM_CIME_BUILD
 #include <unistd.h>
@@ -81,7 +82,7 @@ namespace control {
  *
  * For more info see header comments in the proper files:
  *  - for field                -> src/share/field/field.hpp
- *  - for field manager        -> src/share/field/field_manager.hpp
+ *  - for field manager        -> src/share/manager/field_manager.hpp
  *  - for field groups         -> src/share/field/field_group.hpp
  *  - for field/group requests -> src/share/field/field_request.hpp
  *  - for grid                 -> src/share/grid/abstract_grid.hpp
@@ -234,7 +235,7 @@ void AtmosphereDriver::create_atm_processes()
   // Create the group of processes. This will recursively create the processes
   // tree, storing also the information regarding parallel execution (if needed).
   // See AtmosphereProcessGroup class documentation for more details.
-  auto& atm_proc_params = m_atm_params.sublist("atmosphere_processes");
+  auto& atm_proc_params = m_atm_params.sublist("eamxx");
   atm_proc_params.rename("EAMxx");
   atm_proc_params.set("logger",m_atm_logger);
   m_atm_process_group = std::make_shared<AtmosphereProcessGroup>(m_atm_comm,atm_proc_params);
@@ -420,13 +421,12 @@ void AtmosphereDriver::setup_column_conservation_checks ()
 {
   // Query m_atm_process_group if any process enables the conservation check,
   // and if not, return before creating and passing the check.
-  if (not m_atm_process_group->are_column_conservation_checks_enabled()) {
+  if (not m_atm_process_group->are_conservation_checks_enabled()) {
     return;
   }
 
   auto phys_grid = m_grids_manager->get_grid("physics");
   const auto phys_grid_name = phys_grid->name();
-
   // Get fields needed to run the mass and energy conservation checks. Require that
   // all fields exist.
   EKAT_REQUIRE_MSG (
@@ -467,7 +467,7 @@ void AtmosphereDriver::setup_column_conservation_checks ()
   const auto heat_flux      = m_field_mgr->get_field("heat_flux",      phys_grid_name);
 
   auto conservation_check =
-    std::make_shared<MassAndEnergyColumnConservationCheck>(phys_grid,
+    std::make_shared<MassAndEnergyConservationCheck>(m_atm_comm,phys_grid,
                                                            mass_error_tol, energy_error_tol,
                                                            pseudo_density, ps, phis,
                                                            horiz_winds, T_mid, qv,
@@ -537,7 +537,6 @@ void AtmosphereDriver::create_fields()
 
   // Create FM
   m_field_mgr = std::make_shared<field_mgr_type>(m_grids_manager);
-  m_field_mgr->registration_begins();
 
   // Before registering fields, check that Field Requests for tracers are compatible
   // and store the correct type of turbulence advection for each tracer
@@ -956,23 +955,23 @@ void AtmosphereDriver::restart_model ()
 
   for (auto& it : m_atm_process_group->get_restart_extra_data()) {
     const auto& name = it.first;
-          auto& any  = it.second;
+          auto& any  = *it.second;
 
-    if (any.isType<int>()) {
-      ekat::any_cast<int>(any) = scorpio::get_attribute<int>(filename,"GLOBAL",name);
-    } else if (any.isType<std::int64_t>()) {
-      ekat::any_cast<std::int64_t>(any) = scorpio::get_attribute<std::int64_t>(filename,"GLOBAL",name);
-    } else if (any.isType<float>()) {
-      ekat::any_cast<float>(any) = scorpio::get_attribute<float>(filename,"GLOBAL",name);
-    } else if (any.isType<double>()) {
-      ekat::any_cast<double>(any) = scorpio::get_attribute<double>(filename,"GLOBAL",name);
-    } else if (any.isType<std::string>()) {
-      ekat::any_cast<std::string>(any) = scorpio::get_attribute<std::string>(filename,"GLOBAL",name);
+    if (any.type()==typeid(int)) {
+      std::any_cast<int&>(any) = scorpio::get_attribute<int>(filename,"GLOBAL",name);
+    } else if (any.type()==typeid(std::int64_t)) {
+      std::any_cast<std::int64_t&>(any) = scorpio::get_attribute<std::int64_t>(filename,"GLOBAL",name);
+    } else if (any.type()==typeid(float)) {
+      std::any_cast<float&>(any) = scorpio::get_attribute<float>(filename,"GLOBAL",name);
+    } else if (any.type()==typeid(double)) {
+      std::any_cast<double&>(any) = scorpio::get_attribute<double>(filename,"GLOBAL",name);
+    } else if (any.type()==typeid(std::string)) {
+      std::any_cast<std::string&>(any) = scorpio::get_attribute<std::string>(filename,"GLOBAL",name);
     } else {
       EKAT_ERROR_MSG (
           "Error! Unrecognized/unsupported concrete type for restart extra data.\n"
           " - extra data name  : " + name + "\n"
-          " - extra data typeid: " + any.content().type().name() + "\n");
+          " - extra data typeid: " + std::string(any.type().name()) + "\n");
     }
   }
 
@@ -1621,9 +1620,11 @@ void AtmosphereDriver::run (const int dt) {
   EKAT_REQUIRE_MSG (dt>0, "Error! Input time step must be positive.\n");
 
   // Print current timestamp information
+  auto end_of_step = m_current_ts + dt;
   m_atm_logger->log(ekat::logger::LogLevel::info,
-    "Atmosphere step = " + std::to_string(m_current_ts.get_num_steps()) + "\n" +
-    "  model start-of-step time = " + m_current_ts.get_date_string() + " " + m_current_ts.get_time_string() + "\n");
+    "Atmosphere step = " + std::to_string(end_of_step.get_num_steps()) + "\n" +
+    "  model beg-of-step timestamp: " + m_current_ts.get_date_string() + " " + m_current_ts.get_time_string() + "\n"
+    "  model end-of-step timestamp: " + end_of_step.get_date_string() + " " + end_of_step.get_time_string() + "\n");
 
   // Reset accum fields to 0
   // Note: at the 1st timestep this is redundant, since we did it at init,
