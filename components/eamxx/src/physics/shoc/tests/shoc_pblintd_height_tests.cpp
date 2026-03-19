@@ -3,7 +3,7 @@
 #include "share/core/eamxx_types.hpp"
 #include "shoc_functions.hpp"
 #include "shoc_test_data.hpp"
-#include "eamxx_setup_random_test.hpp"
+#include "share/core/eamxx_setup_random_test.hpp"
 
 #include "shoc_unit_tests_common.hpp"
 
@@ -71,8 +71,8 @@ struct UnitWrap::UnitTest<D>::TestPblintdHeight : public UnitWrap::UnitTest<D>::
       for(Int n = 0; n < nlev; ++n) {
         const auto offset = n + s * nlev;
         REQUIRE(SDS.z[offset] > 0);
-        REQUIRE(std::abs(SDS.u[offset] < 100));
-        REQUIRE(std::abs(SDS.v[offset] < 100));
+        REQUIRE(std::abs(SDS.u[offset]) < 100);
+        REQUIRE(std::abs(SDS.v[offset]) < 100);
         REQUIRE(SDS.thv[offset] < 1000);
         REQUIRE(SDS.thv[offset] > 150);
       }

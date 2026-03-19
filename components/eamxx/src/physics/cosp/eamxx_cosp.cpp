@@ -1,11 +1,12 @@
 #include "eamxx_cosp.hpp"
 #include "cosp_functions.hpp"
-#include "physics/share/physics_constants.hpp"
+#include "share/physics/physics_constants.hpp"
 #include "share/util/eamxx_universal_constants.hpp"
 #include "share/physics/eamxx_common_physics_functions.hpp"
 #include "share/property_checks/field_within_interval_check.hpp"
 #include "share/field/field_utils.hpp"
 
+#include <ekat_team_policy_utils.hpp>
 #include <ekat_assert.hpp>
 #include <ekat_units.hpp>
 
@@ -30,7 +31,7 @@ Cosp::Cosp (const ekat::Comm& comm, const ekat::ParameterList& params)
 }
 
 // =========================================================================================
-void Cosp::set_grids(const std::shared_ptr<const GridsManager> grids_manager)
+void Cosp::create_requests()
 {
   using namespace ekat::units;
   using namespace ekat::prefixes;
@@ -44,7 +45,7 @@ void Cosp::set_grids(const std::shared_ptr<const GridsManager> grids_manager)
   auto m2 = pow(m, 2);
   auto s2 = pow(s, 2);
 
-  m_grid = grids_manager->get_grid("physics");
+  m_grid = m_grids_manager->get_grid("physics");
   const auto& grid_name = m_grid->name();
   m_num_cols = m_grid->get_num_local_dofs(); // Number of columns on this rank
   m_num_levs = m_grid->get_num_vertical_levels();  // Number of levels per column
@@ -177,7 +178,7 @@ void Cosp::run_impl (const double dt)
     using PF       = scream::PhysicsFunctions<DefaultDevice>;
 
     const auto scan_policy = TPF::get_thread_range_parallel_scan_team_policy(ncol, nlev);
-    const auto g = physics::Constants<Real>::gravit;
+    const Real g = physics::Constants<Real>::gravit.value;
     Kokkos::parallel_for(scan_policy, KOKKOS_LAMBDA (const KT::MemberType& team) {
         const int i = team.league_rank();
         const auto p_mid_s = ekat::subview(p_mid_d, i);

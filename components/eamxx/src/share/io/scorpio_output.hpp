@@ -2,11 +2,11 @@
 #define SCREAM_SCORPIO_OUTPUT_HPP
 
 #include "share/atm_process/atmosphere_diagnostic.hpp"
-#include "share/manager/field_manager.hpp"
+#include "share/data_managers/field_manager.hpp"
+#include "share/data_managers/grids_manager.hpp"
 #include "share/grid/abstract_grid.hpp"
-#include "share/grid/grids_manager.hpp"
 #include "share/io/eamxx_io_utils.hpp"
-#include "share/io/eamxx_scorpio_interface.hpp"
+#include "share/scorpio_interface/eamxx_scorpio_interface.hpp"
 #include "share/util/eamxx_time_stamp.hpp"
 #include "share/util/eamxx_utils.hpp"
 
@@ -229,7 +229,8 @@ protected:
   DefaultMetadata m_default_metadata;
 
   bool m_add_time_dim;
-  bool m_track_avg_cnt         = false;
+  bool m_track_avg_cnt = false;
+  bool m_latlon_output = false;
   std::string m_decomp_dimname = "";
 
   std::shared_ptr<ekat::logger::LoggerBase> m_atm_logger =

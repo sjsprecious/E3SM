@@ -32,13 +32,11 @@ void Functions<S,D>::momentum_energy_conservation(
   const uview_1d<Real>& vtgw,
   const uview_1d<Real>& ttgw)
 {
-  static constexpr Real half=0.5;
-
   // Total mass from ground to source level: rho*dz = dp/gravit
   Real dz = 0;
   Kokkos::parallel_reduce(
     Kokkos::TeamVectorRange(team, tend_level+1, pver), [&] (const int k, Real& lsum) {
-    lsum += pdel(k) / C::gravit;
+    lsum += pdel(k) / C::gravit.value;
   }, Kokkos::Sum<Real>(dz));
 
   // Tendency for U & V below source level.
@@ -62,8 +60,8 @@ void Functions<S,D>::momentum_energy_conservation(
   Kokkos::parallel_reduce(
     Kokkos::TeamVectorRange(team, 0, pver), [&] (const int k, Real& lsum) {
       lsum += pdel(k) * (dsdt(k) +
-                         dudt(k)*(u(k)+dudt(k)*half*dt) +
-                         dvdt(k)*(v(k)+dvdt(k)*half*dt) );
+                         dudt(k)*(u(k)+dudt(k)*GWC::half*dt) +
+                         dvdt(k)*(v(k)+dvdt(k)*GWC::half*dt) );
     }, Kokkos::Sum<Real>(dE));
 
   dE = dE/(pint(pver)-pint(tend_level+1));

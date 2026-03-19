@@ -1,7 +1,7 @@
 #include "share/io/eamxx_output_manager.hpp"
-#include "share/grid/mesh_free_grids_manager.hpp"
+#include "share/data_managers/mesh_free_grids_manager.hpp"
+#include "share/data_managers/field_manager.hpp"
 #include "share/field/field.hpp"
-#include "share/manager/field_manager.hpp"
 #include "share/util/eamxx_time_stamp.hpp"
 #include "share/core/eamxx_types.hpp"
 
@@ -29,6 +29,7 @@ create_gm (const ekat::Comm& comm, const int ngcols, const int nlevs) {
   pl.set("aliases",vos_t{"physics"});
   pl.set<int>("number_of_global_columns", ngcols);
   pl.set<int>("number_of_vertical_levels", nlevs);
+  pl.set<int>("gid_base", 1);
 
   auto gm = create_mesh_free_grids_manager(comm,gm_params);
   gm->build_grids();

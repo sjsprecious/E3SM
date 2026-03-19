@@ -1,7 +1,7 @@
 #ifndef SCREAM_SCORPIO_INPUT_HPP
 #define SCREAM_SCORPIO_INPUT_HPP
 
-#include "share/manager/field_manager.hpp"
+#include "share/data_managers/field_manager.hpp"
 #include "share/grid/abstract_grid.hpp"
 #include "share/util/eamxx_utils.hpp"
 
@@ -43,11 +43,6 @@ class AtmosphereInput
 public:
   using fm_type       = FieldManager;
   using grid_type     = AbstractGrid;
-
-  using KT = KokkosTypes<DefaultDevice>;
-  template<int N>
-  using view_Nd_host = typename KT::template view_ND<Real,N>::HostMirror;
-  using view_1d_host = view_Nd_host<1>;
 
   // --- Constructor(s) & Destructor --- //
   // NOTE: non-trivial constructors simply call the corresponding init method
@@ -103,8 +98,6 @@ public:
 protected:
 
   void set_grid (const std::shared_ptr<const AbstractGrid>& grid);
-  void set_views (const std::map<std::string,view_1d_host>& host_views_1d,
-                  const std::map<std::string,FieldLayout>&  layouts);
   void init_scorpio_structures ();
 
   void set_decompositions();

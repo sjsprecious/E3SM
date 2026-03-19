@@ -50,6 +50,9 @@ module control_mod
 ! should be renamed to "hydrostatic_mode"
   logical, public :: theta_hydrostatic_mode
 
+! option to run 3d turbulence
+  logical, public :: do_3d_turbulence
+
 
   integer, public  :: tstep_type= 5                           ! preqx timestepping options
   integer, public  :: rk_stage_user  = 0                      ! number of RK stages (shallow water model) 
@@ -643,7 +646,7 @@ contains
 
 subroutine set_planar_defaults()
 
-use physical_constants, only: Lx, Ly, Sx, Sy
+use physical_constants, only: Lx, Ly, Sx, Sy, dd_pi, rearth
  
 !since defaults here depend on test, they cannot be set before ctl_nl is read, unlike some other parameters, bubble_*, etc.        
 !if true, most likely lx,ly,sx,sy weren't set in ctl_nl
@@ -705,7 +708,11 @@ use physical_constants, only: Lx, Ly, Sx, Sy
 !       Ly = 5000.0D0 * 1000.0D0
 !       Sx = 0.0D0
 !       Sy = 0.0D0
-
+    else if (test_case(1:16) == 'planar_transport') then
+       Lx = 2*dd_pi*rearth
+       Ly = Lx
+       Sx = -Lx/2
+       Sy = Sx
     endif
     endif !if lx,ly,sx,sy are not set in nl
 

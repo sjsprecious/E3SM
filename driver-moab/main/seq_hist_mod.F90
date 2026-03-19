@@ -46,7 +46,6 @@ module seq_hist_mod
   use seq_flds_mod, only: seq_flds_i2x_fields, seq_flds_r2x_fields,seq_flds_dom_fields
   use seq_flds_mod, only: seq_flds_l2x_fields, seq_flds_x2a_fields, seq_flds_x2i_fields
   use seq_flds_mod, only: seq_flds_x2l_fields, seq_flds_x2r_fields
-  use iMOAB,            only: iMOAB_GetGlobalInfo
   use shr_moab_mod,      only: mbGetnCells,mbGetCellTagVals
 
   use component_type_mod
@@ -420,9 +419,9 @@ contains
 !             call seq_io_write(hist_file, gsmap, fractions_zx, 'fractions_zx',  &
 !                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, dims2din=latlonid, pre='fracz')
 !             call seq_io_write(hist_file, iac, 'c2x', 'z2x_zx', &
-!                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, dims2din=latlonid, pre='w2x')
+!                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, dims2din=latlonid, pre='z2x')
 !             call seq_io_write(hist_file, iac, 'x2c', 'x2z_zx', &
-!                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, dims2din=latlonid, pre='x2w')
+!                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, dims2din=latlonid, pre='x2z')
 !          endif
         enddo
        call seq_io_close(hist_file)
@@ -985,7 +984,7 @@ contains
                 gsmap => component_get_gsmap_cx(iac(1))
                 dom   => component_get_dom_cx(iac(1))
                 call seq_io_write(hist_file, gsmap, dom%data, 'dom_zx',  &
-                     nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='domw')
+                     nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='domz')
                 call seq_io_write(hist_file, gsmap, z2x_zx_avg, 'z2x_zx',  &
                      nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata,  &
                      pre='z2xavg', tavg=.true.)
