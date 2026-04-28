@@ -138,6 +138,7 @@ setup (const std::shared_ptr<fm_type>& field_mgr,
 
     // If 2+ grids are present, we mandate suffix on all geo_data fields,
     // to avoid clashes of names.
+    using stratts_t = std::map<std::string,std::string>;
     bool use_suffix = grids.size()>1;
     for (const auto& [gname,grid] : grids) {
       std::vector<Field> fields;
@@ -161,22 +162,23 @@ setup (const std::shared_ptr<fm_type>& field_mgr,
           fields.push_back(f.clone(f.name() + grid->m_disambiguation_suffix, gname));
 
           // Adjust long/std name, as the default metadata does not recognize the names with suffix
-          using stratts_t = std::map<std::string,std::string>;
           auto& str_atts = fields.back().get_header().get_extra_data<stratts_t>("io: string attributes");
           str_atts["long_name"] = meta.get_longname(f.name());
           str_atts["standard_name"] = meta.get_standardname(f.name());
         } else {
           fields.push_back(f.clone(f.name(), gname));
         }
+
+        // Transfer io: string attributes from original field (e.g., "bounds" attribute).
+        // Use insert so that we don't override entries already set above (e.g., long_name).
+        if (f.get_header().has_extra_data("io: string attributes")) {
+          const auto& src_atts = f.get_header().get_extra_data<stratts_t>("io: string attributes");
+          auto& dst_atts = fields.back().get_header().get_extra_data<stratts_t>("io: string attributes");
+          dst_atts.insert(src_atts.begin(), src_atts.end());
+        }
       }
 
-      // See comment above for ncol naming with 2+ grids
-      auto grid_nonconst = grid->clone(gname,true);
-      if (gname == "physics_gll" && pg2_grid_in_io_streams) {
-        grid_nonconst->reset_field_tag_name(ShortFieldTagsNames::COL,"ncol_d");
-      }
-
-      auto output = std::make_shared<output_type>(m_io_comm,fields,grid_nonconst);
+      auto output = std::make_shared<output_type>(m_io_comm,fields,grid);
       m_geo_data_streams.push_back(output);
     }
   }
@@ -859,6 +861,17 @@ setup_file (      IOFileSpecs& filespecs,
     }
     scorpio::set_attribute(filename,"GLOBAL","fp_precision",fp_precision);
     set_file_header(filespecs);
+
+    // Collect intermediate-only aliases from all output streams and write them
+    // as a global attribute for documentation purposes.
+    std::vector<std::string> all_aliases;
+    for (const auto& s : m_output_streams) {
+      for (const auto& a : s->get_intermediate_aliases()) {
+        all_aliases.push_back(a);
+      }
+    }
+    scorpio::set_attribute(filename,"GLOBAL","aliases",
+                           all_aliases.empty() ? "None" : ekat::join(all_aliases,", "));
 
     const auto& pc_names = m_params.get<std::vector<std::string>>("constants",{});
     const auto& pc_dict = physics::Constants<Real>::dictionary();
