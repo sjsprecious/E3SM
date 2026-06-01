@@ -4024,7 +4024,7 @@
       <modules compiler="intel">
         <command name="load">intel/2024.2.1</command>
 	      <command name="load">mkl</command>
-        <command name="load">kokkos</command>
+        <!-- <command name="load">kokkos</command> -->
       </modules>
       <modules compiler="intel-oneapi">
         <command name="load">intel-oneapi/2024.2.1</command>
