@@ -23,6 +23,7 @@ module spmdGathScatMod
 !
 ! !PUBLIC MEMBER FUNCTIONS:
   public  scatter_data_from_master, gather_data_to_master
+  public  gather_count_scatter_start
 
   interface scatter_data_from_master
      module procedure scatter_1darray_int
@@ -44,6 +45,79 @@ module spmdGathScatMod
 !-----------------------------------------------------------------------
 
 contains
+
+!-----------------------------------------------------------------------
+!BOP
+!
+! !IROUTINE: gather_count_scatter_start
+!
+! !INTERFACE:
+  subroutine gather_count_scatter_start(count_local, start_local, elmlevel)
+!
+! !DESCRIPTION:
+! Given a local (per-gridcell) subgrid COUNT array, compute the global,
+! 1-based START index array
+!     start(n) = 1 + sum( count(1:n-1) )    (over global gridcells)
+! and scatter it back to the local decomposition.
+!
+! The full global-grid work buffer is allocated ONLY on masterproc (a size-1
+! stub elsewhere), because the underlying gather/scatter only access the
+! global array on masterproc.  This avoids replicating a full global-grid
+! integer array (~lni*lnj) on every MPI task, which is a large peak-memory
+! cost during land decomposition at high resolution / high task counts
+! (e.g. ne1024pg2 on many ranks/node).
+!
+! !ARGUMENTS:
+    implicit none
+    integer, pointer             :: count_local(:) ! local count array (input)
+    integer, pointer             :: start_local(:) ! local start array (output)
+    character(len=*), intent(in) :: elmlevel       ! type of input grid
+!
+! !REVISION HISTORY:
+! Refactored out of decompInitMod::decompInit_gtlcp to keep the full global
+! work buffer off non-master ranks.
+!
+! !LOCAL VARIABLES:
+!EOP
+    integer                    :: n          ! loop index
+    integer                    :: ng         ! global size of elmlevel grid
+    integer                    :: val1, val2 ! temporaries for in-place prefix sum
+    integer, pointer           :: aglobal(:) ! global work buffer (full on master only)
+    type(mct_gsMap), pointer   :: gsmap      ! global seg map for elmlevel
+    character(len=*),parameter :: subname = 'gather_count_scatter_start'
+!-----------------------------------------------------------------------
+
+    call get_elmlevel_gsmap(elmlevel, gsmap)
+    ng = mct_gsmap_gsize(gsmap)
+
+    ! Full-size global buffer on masterproc only; size-1 stub elsewhere.
+    if (masterproc) then
+       allocate(aglobal(ng))
+    else
+       allocate(aglobal(1))
+    endif
+    aglobal(:) = 0
+
+    ! Gather the local counts into the global array on masterproc.
+    call gather_data_to_master(count_local, aglobal, elmlevel)
+
+    ! On masterproc convert gathered counts -> global 1-based start indices.
+    if (masterproc) then
+       val1 = aglobal(1)
+       aglobal(1) = 1
+       do n = 2, ng
+          val2 = aglobal(n)
+          aglobal(n) = aglobal(n-1) + val1
+          val1 = val2
+       enddo
+    endif
+
+    ! Scatter the global start indices back to the local decomposition.
+    call scatter_data_from_master(start_local, aglobal, elmlevel)
+
+    deallocate(aglobal)
+
+  end subroutine gather_count_scatter_start
 
 !-----------------------------------------------------------------------
 !BOP

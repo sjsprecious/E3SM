@@ -1294,10 +1294,7 @@ contains
     integer :: npmin,npmax,npint  ! do loop values for printing
     integer :: clmin,clmax        ! do loop values for printing
     integer :: locsize,globsize   ! used for gsMap init
-    integer :: ng                 ! number of gridcells in gsMap_lnd_gdc2glo
-    integer :: val1, val2         ! temporaries
     integer, pointer :: gindex(:) ! global index for gsMap init
-    integer, pointer :: arrayglob(:) ! temporaroy
     integer, pointer :: gstart(:),  gcount(:)
     integer, pointer :: tstart(:),  tcount(:)
     integer, pointer :: lstart(:),  lcount(:)
@@ -1382,96 +1379,22 @@ contains
     ! scatter the subgrid start indices back out to the gdc gridcells
     ! set the local gindex array for the subgrid from the subgrid start and count arrays
 
-    ng = mct_gsmap_gsize(gsmap_lnd_gdc2glo)
-    allocate(arrayglob(ng))
-
-    arrayglob(:) = 0
-    call gather_data_to_master(gcount, arrayglob, grlnd)
-    if (masterproc) then
-       val1 = arrayglob(1)
-       arrayglob(1) = 1
-       do n = 2,ng
-          val2 = arrayglob(n)
-          arrayglob(n) = arrayglob(n-1) + val1
-          val1 = val2
-       enddo
-    endif
-    call scatter_data_from_master(gstart, arrayglob, grlnd)
-
-    ! tstart for gridcell (n) is the total number of the topounits
-    ! over gridcells 1->n-1
-
-    arrayglob(:) = 0
-    call gather_data_to_master(tcount, arrayglob, grlnd)
-    if (masterproc) then
-       val1 = arrayglob(1)
-       arrayglob(1) = 1
-       do n = 2,ng
-          val2 = arrayglob(n)
-          arrayglob(n) = arrayglob(n-1) + val1
-          val1 = val2
-       enddo
-    endif
-    call scatter_data_from_master(tstart, arrayglob, grlnd)
-
-    ! lstart for gridcell (n) is the total number of the landunits
-    ! over gridcells 1->n-1
-
-    arrayglob(:) = 0
-    call gather_data_to_master(lcount, arrayglob, grlnd)
-    if (masterproc) then
-       val1 = arrayglob(1)
-       arrayglob(1) = 1
-       do n = 2,ng
-          val2 = arrayglob(n)
-          arrayglob(n) = arrayglob(n-1) + val1
-          val1 = val2
-       enddo
-    endif
-    call scatter_data_from_master(lstart, arrayglob, grlnd)
-
-    arrayglob(:) = 0
-    call gather_data_to_master(ccount, arrayglob, grlnd)
-    if (masterproc) then
-       val1 = arrayglob(1)
-       arrayglob(1) = 1
-       do n = 2,ng
-          val2 = arrayglob(n)
-          arrayglob(n) = arrayglob(n-1) + val1
-          val1 = val2
-       enddo
-    endif
-    call scatter_data_from_master(cstart, arrayglob, grlnd)
-
-    arrayglob(:) = 0
-    call gather_data_to_master(pcount, arrayglob, grlnd)
-    if (masterproc) then
-       val1 = arrayglob(1)
-       arrayglob(1) = 1
-       do n = 2,ng
-          val2 = arrayglob(n)
-          arrayglob(n) = arrayglob(n-1) + val1
-          val1 = val2
-       enddo
-    endif
-    call scatter_data_from_master(pstart, arrayglob, grlnd)
+    ! Compute global, 1-based start indices for each subgrid level from the
+    ! local per-gridcell counts.  start(n) for gridcell n is the cumulative
+    ! number of gridcells/topounits/landunits/columns/patches over global
+    ! gridcells 1 -> n-1.  The full global work buffer is now allocated
+    ! master-only inside gather_count_scatter_start (spmdGathScatMod) instead
+    ! of being replicated on every MPI task -- important for memory at high
+    ! resolution / high task counts (e.g. ne1024pg2 on many ranks/node).
+    call gather_count_scatter_start(gcount, gstart, grlnd)
+    call gather_count_scatter_start(tcount, tstart, grlnd)
+    call gather_count_scatter_start(lcount, lstart, grlnd)
+    call gather_count_scatter_start(ccount, cstart, grlnd)
+    call gather_count_scatter_start(pcount, pstart, grlnd)
 
     if ( use_fates ) then
-       arrayglob(:) = 0
-       call gather_data_to_master(coCount, arrayglob, grlnd)
-       if (masterproc) then
-          val1 = arrayglob(1)
-          arrayglob(1) = 1
-          do n = 2,ng
-             val2 = arrayglob(n)
-             arrayglob(n) = arrayglob(n-1) + val1
-             val1 = val2
-          enddo
-       endif
-       call scatter_data_from_master(coStart, arrayglob, grlnd)
+       call gather_count_scatter_start(coCount, coStart, grlnd)
     endif
-
-    deallocate(arrayglob)
 
     ! Gridcell gsMap (compressed, no ocean points)
 
